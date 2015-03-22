@@ -1,0 +1,26 @@
+[
+  {
+    "event_type": "departures.created",
+    "resource": "departures",
+    "created": "2013-05-17T05:34:38Z",
+    "data": { "id": 595943, "href": "https://rest.gadventures.com/departures/595943" }
+  },
+  {
+    "event_type": "departures.created",
+    "resource": "departures",
+    "created": "2013-05-17T05:34:38Z",
+    "data": { "id": 566603, "href": "https://rest.gadventures.com/departures/566603" }
+  },
+  {
+    "event_type": "tours.created",
+    "resource": "tours",
+    "created": "2013-05-17T05:34:38Z",
+    "data": { "id": 22997, "href": "https://rest.gadventures.com/tours/22997" }
+  },
+  {
+    "event_type": "tour_dossiers.created",
+    "resource": "tour_dossiers",
+    "created": "2013-05-17T05:34:38Z",
+    "data": { "id": 22997, "href": "https://rest.gadventures.com/tour_dossiers/22997" }
+  }
+]
