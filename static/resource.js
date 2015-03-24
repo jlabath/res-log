@@ -44,9 +44,11 @@ $(function(){
         fetchResources: function(){
             var restype = this.$("#restype");
             var resid = this.$("#resid");
-            var url = "/l/"+restype.val()+"/"+$.trim(resid.val());
-            resources.url = url;
-            resources.fetch({reset:true});
+            if ($.trim(resid.val())){
+                var url = "/l/"+restype.val()+"/"+$.trim(resid.val());
+                resources.url = url;
+                resources.fetch({reset:true});
+            }
         },
         initialize: function() {
             this.listenTo(resources, 'reset', this.render);
@@ -57,7 +59,12 @@ $(function(){
             resources.forEach(function(val){
                 lst.append($("<option>").html(val.get("fetchdate")).attr('value',val.cid));
             });
-            this.$("#reslst").change();
+            if (resources.length >  0){
+                this.$("#reslst").change();
+            } else {
+                lst.append($("<option>").html("No results found for: " + resources.url.substring(3) + " ").attr('value',''));
+                this.$("#resview").hide();
+            }
         },
         showResource: function(){
             var cid = this.$("#reslst").val();
