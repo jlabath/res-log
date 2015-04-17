@@ -37,7 +37,9 @@
 <select id="reslst"></select>
 </div>
 <div id="resview"></div>
+<div id="history"></div>
 </div>
+<!-- templates -->
 <script type="text/template" id="res-template">
     <ul>
     <li>SHA1: <%- sha1 %></li>
@@ -46,5 +48,13 @@
     <pre><% print(JSON.stringify(resource, null, 4)); %></pre>
     </ul>
 </script>
+<script type="text/template" id="res-history">
+    <ul>
+    <% _.each( collection.models,  function(listItem){ %>
+        <li><%- listItem.get("label") %></li>
+    <% }); %>
+    </ul>
+</script>
+
 </body>
 </html>

@@ -1,0 +1,17 @@
+#resapp { position: relative; }
+
+#history {
+  position: absolute;
+  top: 30px;
+  right: 100px;
+}
+
+#history ul {
+  list-style-type: none;
+}
+
+#history ul li {
+  text-decoration: underline;
+  color: purple;
+  cursor: pointer;
+};
