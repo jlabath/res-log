@@ -23,6 +23,8 @@ $(function(){
     var ResList = Backbone.Collection.extend({
          model: ResModel,
          comparator: function(x, y){
+            x = x.get('fetchdate');
+            y = y.get('fetchdate');
             if (x < y) {
                 return 1;
             } else if (x > y) {
