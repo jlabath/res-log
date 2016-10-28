@@ -22,7 +22,8 @@ import (
 
 func init() {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/", home)
+	mux.HandleFunc("/", homeElm)
+	mux.HandleFunc("/legacy/", home)
 	mux.HandleFunc("/r", receive)
 	mux.HandleFunc("/r/", receive)
 	mux.Handle("/l", http.NotFoundHandler())
@@ -30,13 +31,22 @@ func init() {
 	http.Handle("/", mux)
 }
 
-var homeTmpl = template.Must(template.ParseFiles("templates/index.html"))
+var elmTmpl = template.Must(template.ParseFiles("templates/index_elm.html"))
 
-func home(w http.ResponseWriter, r *http.Request) {
+func homeElm(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/" {
 		http.NotFound(w, r)
 		return
 	}
+	if err := elmTmpl.Execute(w, nil); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
+
+var homeTmpl = template.Must(template.ParseFiles("templates/index.html"))
+
+func home(w http.ResponseWriter, r *http.Request) {
 	if err := homeTmpl.Execute(w, nil); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -224,6 +234,14 @@ func getURLPart(prefix, urlpath string, idx int) (r string) {
 }
 
 func resourcesView(w http.ResponseWriter, r *http.Request) {
+	//enable the CORS preflight wonder used by browsers
+	w.Header().Add("Access-Control-Allow-Origin", "*")
+	w.Header().Add("Access-Control-Allow-Methods", "POST, GET, OPTIONS, HEAD")
+	for _, value := range r.Header["Access-Control-Request-Headers"] {
+		w.Header().Add("Access-Control-Allow-Headers", value)
+	}
+	w.Header().Add("Access-Control-Max-Age", "3600")
+	//end of CORS
 	restype := getURLPart("/l/", r.URL.Path, 0)
 	resid := getURLPart("/l/", r.URL.Path, 1)
 	if resid == "" || restype == "" {
