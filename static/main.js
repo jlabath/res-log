@@ -9549,8 +9549,21 @@ var _jlabath$res_log$Main$decodeData = _elm_lang$core$Json_Decode$list(_jlabath$
 var _jlabath$res_log$Main$resourceList = _elm_lang$core$Native_List.fromArray(
 	[
 		{ctor: '_Tuple2', _0: 'departures', _1: 'Departures'},
+		{ctor: '_Tuple2', _0: 'accommodations', _1: 'Accommodations'},
+		{ctor: '_Tuple2', _0: 'accommodation_dossiers', _1: 'Accommodation Dossiers'},
+		{ctor: '_Tuple2', _0: 'activities', _1: 'Activities'},
+		{ctor: '_Tuple2', _0: 'activity_dossiers', _1: 'Activity Dossiers'},
+		{ctor: '_Tuple2', _0: 'itineraries', _1: 'Itineraries'},
+		{ctor: '_Tuple2', _0: 'packing_items', _1: 'Packing Items'},
+		{ctor: '_Tuple2', _0: 'packing_lists', _1: 'Packing Lists'},
+		{ctor: '_Tuple2', _0: 'place_dossiers', _1: 'Place Dossiers'},
+		{ctor: '_Tuple2', _0: 'places', _1: 'Places'},
+		{ctor: '_Tuple2', _0: 'promotions', _1: 'Promotions'},
+		{ctor: '_Tuple2', _0: 'single_supplements', _1: 'Single Supplements'},
 		{ctor: '_Tuple2', _0: 'tour_dossiers', _1: 'Tour Dossiers'},
-		{ctor: '_Tuple2', _0: 'promotions', _1: 'Promotions'}
+		{ctor: '_Tuple2', _0: 'tours', _1: 'Tours'},
+		{ctor: '_Tuple2', _0: 'transport_dossiers', _1: 'Transport Dossiers'},
+		{ctor: '_Tuple2', _0: 'transports', _1: 'Transports'}
 	]);
 var _jlabath$res_log$Main$resourceLabel = function (rType) {
 	return _elm_lang$core$Basics$snd(
@@ -9570,23 +9583,30 @@ var _jlabath$res_log$Main$resourceLabel = function (rType) {
 var _jlabath$res_log$Main$subscriptions = function (model) {
 	return _elm_lang$core$Platform_Sub$none;
 };
-var _jlabath$res_log$Main$renderOption = function (_p1) {
-	var _p2 = _p1;
-	return A2(
-		_elm_lang$html$Html$option,
-		_elm_lang$core$Native_List.fromArray(
+var _jlabath$res_log$Main$renderOption = F2(
+	function ($default, _p1) {
+		var _p2 = _p1;
+		var _p3 = _p2._0;
+		var optval = _elm_lang$core$Native_Utils.eq(_p3, $default) ? _elm_lang$core$Native_List.fromArray(
 			[
-				_elm_lang$html$Html_Attributes$value(_p2._0)
-			]),
-		_elm_lang$core$Native_List.fromArray(
+				_elm_lang$html$Html_Attributes$value(_p3),
+				_elm_lang$html$Html_Attributes$selected(true)
+			]) : _elm_lang$core$Native_List.fromArray(
 			[
-				_elm_lang$html$Html$text(_p2._1)
-			]));
-};
+				_elm_lang$html$Html_Attributes$value(_p3)
+			]);
+		return A2(
+			_elm_lang$html$Html$option,
+			optval,
+			_elm_lang$core$Native_List.fromArray(
+				[
+					_elm_lang$html$Html$text(_p2._1)
+				]));
+	});
 var _jlabath$res_log$Main$renderResLst = function (entries) {
 	return A2(
 		_elm_lang$core$List$map,
-		_jlabath$res_log$Main$renderOption,
+		_jlabath$res_log$Main$renderOption(''),
 		A2(
 			_jlabath$res_log$Main$toSelectTuples,
 			_elm_lang$core$Native_List.fromArray(
@@ -9658,23 +9678,23 @@ var _jlabath$res_log$Main$getData = F2(
 var _jlabath$res_log$Main$updateGetAction = function (model) {
 	var newmodel = _elm_lang$core$Native_Utils.update(
 		model,
-		{error: '', status: ''});
+		{error: '', status: 'Downloading, please wait ...'});
 	return {
 		ctor: '_Tuple2',
-		_0: A2(_elm_lang$core$Debug$log, 'GetAction', newmodel),
+		_0: newmodel,
 		_1: A2(_jlabath$res_log$Main$getData, newmodel.resourceType, newmodel.resourceId)
 	};
 };
 var _jlabath$res_log$Main$update = F2(
 	function (msg, model) {
-		var _p3 = msg;
-		switch (_p3.ctor) {
+		var _p4 = msg;
+		switch (_p4.ctor) {
 			case 'Entry':
 				return {
 					ctor: '_Tuple2',
 					_0: _elm_lang$core$Native_Utils.update(
 						model,
-						{resourceId: _p3._0, status: '', error: ''}),
+						{resourceId: _p4._0, status: '', error: ''}),
 					_1: _elm_lang$core$Platform_Cmd$none
 				};
 			case 'GetAction':
@@ -9682,65 +9702,61 @@ var _jlabath$res_log$Main$update = F2(
 			case 'ChangeType':
 				var newmodel = _elm_lang$core$Native_Utils.update(
 					model,
-					{resourceType: _p3._0});
+					{resourceType: _p4._0});
+				return {ctor: '_Tuple2', _0: newmodel, _1: _elm_lang$core$Platform_Cmd$none};
+			case 'FetchFail':
+				var err = _elm_lang$core$Basics$toString(_p4._0);
 				return {
 					ctor: '_Tuple2',
-					_0: A2(_elm_lang$core$Debug$log, 'ChangeType', newmodel),
+					_0: _elm_lang$core$Native_Utils.update(
+						model,
+						{error: err}),
 					_1: _elm_lang$core$Platform_Cmd$none
 				};
-			case 'FetchFail':
-				var err = _elm_lang$core$Basics$toString(_p3._0);
-				return A2(
-					_elm_lang$core$Debug$log,
-					err,
-					{
-						ctor: '_Tuple2',
-						_0: _elm_lang$core$Native_Utils.update(
-							model,
-							{error: err}),
-						_1: _elm_lang$core$Platform_Cmd$none
-					});
 			case 'FetchSucceeded':
-				var _p5 = _p3._0;
-				return A2(
-					_elm_lang$core$Debug$log,
-					_elm_lang$core$Basics$toString(_p5),
-					{
-						ctor: '_Tuple2',
-						_0: _elm_lang$core$Native_Utils.update(
-							model,
-							{
-								entries: _p5,
-								currentModel: A2(_jlabath$res_log$Main$lstGet, 0, _p5),
-								error: '',
-								status: A2(
+				var _p6 = _p4._0;
+				return {
+					ctor: '_Tuple2',
+					_0: _elm_lang$core$Native_Utils.update(
+						model,
+						{
+							entries: _p6,
+							currentModel: A2(_jlabath$res_log$Main$lstGet, 0, _p6),
+							error: '',
+							status: A2(
+								_elm_lang$core$Basics_ops['++'],
+								_elm_lang$core$Basics$toString(
+									_elm_lang$core$List$length(_p6)),
+								A2(
 									_elm_lang$core$Basics_ops['++'],
-									_elm_lang$core$Basics$toString(
-										_elm_lang$core$List$length(_p5)),
-									' versions found'),
-								log: function () {
-									var _p4 = _p5;
-									if (_p4.ctor === '[]') {
-										return model.log;
-									} else {
-										return A2(
-											_jlabath$res_log$HistoryView$add,
-											{
-												resId: model.resourceId,
-												resType: model.resourceType,
-												resTypeLabel: _jlabath$res_log$Main$resourceLabel(model.resourceType)
-											},
-											model.log);
-									}
-								}()
-							}),
-						_1: _elm_lang$core$Platform_Cmd$none
-					});
+									' results found for ',
+									A2(
+										_elm_lang$core$Basics_ops['++'],
+										model.resourceType,
+										A2(_elm_lang$core$Basics_ops['++'], '/', model.resourceId)))),
+							log: function () {
+								var _p5 = _p6;
+								if (_p5.ctor === '[]') {
+									return model.log;
+								} else {
+									return A2(
+										_jlabath$res_log$HistoryView$add,
+										{
+											resId: model.resourceId,
+											resType: model.resourceType,
+											resTypeLabel: _jlabath$res_log$Main$resourceLabel(model.resourceType)
+										},
+										model.log);
+								}
+							}()
+						}),
+					_1: _elm_lang$core$Platform_Cmd$none
+				};
 			case 'ChangeVersion':
 				var idx = A2(
 					_elm_lang$core$Result$withDefault,
 					0,
-					_elm_lang$core$String$toInt(_p3._0));
+					_elm_lang$core$String$toInt(_p4._0));
 				return {
 					ctor: '_Tuple2',
 					_0: _elm_lang$core$Native_Utils.update(
@@ -9751,14 +9767,14 @@ var _jlabath$res_log$Main$update = F2(
 					_1: _elm_lang$core$Platform_Cmd$none
 				};
 			case 'KeyPress':
-				return _elm_lang$core$Native_Utils.eq(_p3._0, 13) ? _jlabath$res_log$Main$updateGetAction(model) : _jlabath$res_log$Main$updateNoOp(model);
+				return _elm_lang$core$Native_Utils.eq(_p4._0, 13) ? _jlabath$res_log$Main$updateGetAction(model) : _jlabath$res_log$Main$updateNoOp(model);
 			default:
-				var _p6 = _p3._0;
-				var _p7 = _p6._0;
+				var _p7 = _p4._0;
+				var _p8 = _p7._0;
 				return _jlabath$res_log$Main$updateGetAction(
 					_elm_lang$core$Native_Utils.update(
 						model,
-						{resourceType: _p7.resType, resourceId: _p7.resId}));
+						{resourceType: _p8.resType, resourceId: _p8.resId}));
 		}
 	});
 var _jlabath$res_log$Main$ChangeVersion = function (a) {
@@ -9772,29 +9788,20 @@ var _jlabath$res_log$Main$Entry = function (a) {
 	return {ctor: 'Entry', _0: a};
 };
 var _jlabath$res_log$Main$view = function (model) {
-	var reslst = function () {
-		var _p8 = model.entries;
-		if (_p8.ctor === '[]') {
-			return _elm_lang$core$Native_Utils.eq(model.status, '') ? _elm_lang$core$Native_List.fromArray(
-				[]) : _elm_lang$core$Native_List.fromArray(
-				[
-					_jlabath$res_log$Main$renderOption(
-					{
-						ctor: '_Tuple2',
-						_0: '',
-						_1: A2(
-							_elm_lang$core$Basics_ops['++'],
-							'No results for ',
-							A2(
-								_elm_lang$core$Basics_ops['++'],
-								model.resourceType,
-								A2(_elm_lang$core$Basics_ops['++'], '/', model.resourceId)))
-					})
-				]);
-		} else {
-			return _jlabath$res_log$Main$renderResLst(model.entries);
-		}
-	}();
+	var status = _elm_lang$core$Native_Utils.eq(model.error, '') ? _elm_lang$html$Html$text(model.status) : A2(
+		_elm_lang$html$Html$div,
+		_elm_lang$core$Native_List.fromArray(
+			[
+				_elm_lang$html$Html_Attributes$style(
+				_elm_lang$core$Native_List.fromArray(
+					[
+						{ctor: '_Tuple2', _0: 'color', _1: 'red'}
+					]))
+			]),
+		_elm_lang$core$Native_List.fromArray(
+			[
+				_elm_lang$html$Html$text(model.error)
+			]));
 	var resview = function () {
 		var _p9 = model.currentModel;
 		if (_p9.ctor === 'Nothing') {
@@ -9840,7 +9847,10 @@ var _jlabath$res_log$Main$view = function (model) {
 								_elm_lang$html$Html_Attributes$id('restype'),
 								_jlabath$res_log$Main$onChange(_jlabath$res_log$Main$ChangeType)
 							]),
-						A2(_elm_lang$core$List$map, _jlabath$res_log$Main$renderOption, _jlabath$res_log$Main$resourceList)),
+						A2(
+							_elm_lang$core$List$map,
+							_jlabath$res_log$Main$renderOption(model.resourceType),
+							_jlabath$res_log$Main$resourceList)),
 						A2(
 						_elm_lang$html$Html$label,
 						_elm_lang$core$Native_List.fromArray(
@@ -9890,8 +9900,16 @@ var _jlabath$res_log$Main$view = function (model) {
 								_elm_lang$html$Html_Attributes$id('reslst'),
 								_jlabath$res_log$Main$onChange(_jlabath$res_log$Main$ChangeVersion)
 							]),
-						reslst)
+						_jlabath$res_log$Main$renderResLst(model.entries))
 					])),
+				A2(
+				_elm_lang$html$Html$div,
+				_elm_lang$core$Native_List.fromArray(
+					[
+						_elm_lang$html$Html_Attributes$id('status')
+					]),
+				_elm_lang$core$Native_List.fromArray(
+					[status])),
 				A2(
 				_elm_lang$html$Html$div,
 				_elm_lang$core$Native_List.fromArray(

@@ -1,11 +1,10 @@
 module Main exposing (..)
 
-import Debug
 import Entry
 import HistoryView as Hv
 import Html exposing (Html, text, select, div, label, option, input)
 import Html.App as App
-import Html.Attributes exposing (class, for, id, value, type')
+import Html.Attributes exposing (for, id, value, type', style, selected)
 import Html.Events exposing (onClick, onInput, on, targetValue, keyCode)
 import Http
 import Json.Decode as Json
@@ -85,37 +84,36 @@ update msg model =
                 newmodel =
                     { model | resourceType = newType }
             in
-                ( (Debug.log "ChangeType" newmodel), Cmd.none )
+                ( newmodel, Cmd.none )
 
         FetchFail error ->
             let
                 err =
                     toString error
             in
-                Debug.log err ( { model | error = err }, Cmd.none )
+                ( { model | error = err }, Cmd.none )
 
         FetchSucceeded entries ->
-            Debug.log (toString entries)
-                ( { model
-                    | entries = entries
-                    , currentModel = lstGet 0 entries
-                    , error = ""
-                    , status = (List.length entries |> toString) ++ " versions found"
-                    , log =
-                        case entries of
-                            [] ->
-                                model.log
+            ( { model
+                | entries = entries
+                , currentModel = lstGet 0 entries
+                , error = ""
+                , status = (List.length entries |> toString) ++ " results found for " ++ model.resourceType ++ "/" ++ model.resourceId
+                , log =
+                    case entries of
+                        [] ->
+                            model.log
 
-                            _ ->
-                                Hv.add
-                                    { resId = model.resourceId
-                                    , resType = model.resourceType
-                                    , resTypeLabel = resourceLabel model.resourceType
-                                    }
-                                    model.log
-                  }
-                , Cmd.none
-                )
+                        _ ->
+                            Hv.add
+                                { resId = model.resourceId
+                                , resType = model.resourceType
+                                , resTypeLabel = resourceLabel model.resourceType
+                                }
+                                model.log
+              }
+            , Cmd.none
+            )
 
         ChangeVersion strIndex ->
             let
@@ -150,9 +148,9 @@ updateGetAction : Model -> ( Model, Cmd Msg )
 updateGetAction model =
     let
         newmodel =
-            { model | error = "", status = "" }
+            { model | error = "", status = "Downloading, please wait ..." }
     in
-        ( (Debug.log "GetAction" newmodel), getData newmodel.resourceType newmodel.resourceId )
+        ( newmodel, getData newmodel.resourceType newmodel.resourceId )
 
 
 
@@ -182,27 +180,23 @@ view model =
                 Just entry ->
                     [ Entry.render entry ]
 
-        reslst =
-            case model.entries of
-                [] ->
-                    if model.status == "" then
-                        []
-                    else
-                        [ renderOption ( "", "No results for " ++ model.resourceType ++ "/" ++ model.resourceId ) ]
-
-                _ ->
-                    renderResLst model.entries
+        status =
+            if model.error == "" then
+                text model.status
+            else
+                div [ style [ ( "color", "red" ) ] ] [ text model.error ]
     in
         div [ id "resapp" ]
             [ div [ id "resform" ]
                 [ label [ for "restype" ] [ text "Resource: " ]
-                , resourceList |> List.map renderOption |> select [ id "restype", onChange ChangeType ]
+                , resourceList |> List.map (renderOption model.resourceType) |> select [ id "restype", onChange ChangeType ]
                 , label [ for "resid" ] [ text "ID: " ]
                 , input [ type' "text", id "resid", value model.resourceId, onKeyPress KeyPress, onInput Entry ] []
                 , input [ type' "button", value "Get", onClick GetAction ] []
                 , label [ for "reslst" ] [ text "Results: " ]
-                , select [ id "reslst", onChange ChangeVersion ] reslst
+                , select [ id "reslst", onChange ChangeVersion ] <| renderResLst model.entries
                 ]
+            , div [ id "status" ] [ status ]
             , div [ id "resview" ] resview
             , App.map HistoryMsg (Hv.view model.log)
             ]
@@ -210,12 +204,19 @@ view model =
 
 renderResLst : List Entry.Model -> List (Html a)
 renderResLst entries =
-    entries |> toSelectTuples [] |> List.map renderOption
+    entries |> toSelectTuples [] |> List.map (renderOption "")
 
 
-renderOption : ( String, String ) -> Html a
-renderOption ( val, label ) =
-    option [ value val ] [ text label ]
+renderOption : String -> ( String, String ) -> Html a
+renderOption default ( val, label ) =
+    let
+        optval =
+            if val == default then
+                [ value val, selected True ]
+            else
+                [ value val ]
+    in
+        option optval [ text label ]
 
 
 
@@ -238,8 +239,21 @@ type alias Resource =
 resourceList : List Resource
 resourceList =
     [ ( "departures", "Departures" )
-    , ( "tour_dossiers", "Tour Dossiers" )
+    , ( "accommodations", "Accommodations" )
+    , ( "accommodation_dossiers", "Accommodation Dossiers" )
+    , ( "activities", "Activities" )
+    , ( "activity_dossiers", "Activity Dossiers" )
+    , ( "itineraries", "Itineraries" )
+    , ( "packing_items", "Packing Items" )
+    , ( "packing_lists", "Packing Lists" )
+    , ( "place_dossiers", "Place Dossiers" )
+    , ( "places", "Places" )
     , ( "promotions", "Promotions" )
+    , ( "single_supplements", "Single Supplements" )
+    , ( "tour_dossiers", "Tour Dossiers" )
+    , ( "tours", "Tours" )
+    , ( "transport_dossiers", "Transport Dossiers" )
+    , ( "transports", "Transports" )
     ]
 
 

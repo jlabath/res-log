@@ -14,4 +14,9 @@
   text-decoration: underline;
   color: purple;
   cursor: pointer;
-};
+}
+
+#status {
+    padding: 10px;
+    font-size: small;
+}
