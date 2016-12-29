@@ -33,6 +33,7 @@ func init() {
 	mux.HandleFunc("/l/", resourcesView)
 	mux.HandleFunc("/admin/", adminElm)
 	mux.HandleFunc("/purge/", purgeView)
+	mux.HandleFunc("/cron/daily", dailyView)
 	http.Handle("/", mux)
 }
 
@@ -332,6 +333,8 @@ func purgeBefore(ctx context.Context, when time.Time, encCursor string) (err err
 		if err == nil {
 			q = q.Start(cursor)
 		}
+	} else {
+		log.Debugf(ctx, "Starting purge of anything older than %v", when)
 	}
 
 	// Iterate over the results.
@@ -366,4 +369,13 @@ func purgeBefore(ctx context.Context, when time.Time, encCursor string) (err err
 		f.Call(ctx, when, newCursor)
 	}
 	return nil
+}
+
+func dailyView(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+	ctx := appengine.NewContext(r)
+	t := time.Now().UTC().Add(-365 * 24 * time.Hour)
+	purgeBeforeLater.Call(ctx, t, "")
+	w.Header().Add("content-type", "application/json")
+	fmt.Fprintf(w, "\"OK\"")
 }

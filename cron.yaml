@@ -1,0 +1,4 @@
+cron:
+- description: daily cron job for res-log
+  url: /cron/daily
+  schedule: every 24 hours

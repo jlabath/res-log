@@ -1,5 +1,5 @@
 application: res-log
-version: 1b
+version: 1c
 runtime: go
 api_version: go1
 
@@ -8,6 +8,10 @@ handlers:
   static_dir: static
 
 - url: /admin/
+  script: _go_app
+  login: admin
+
+- url: /cron/daily
   script: _go_app
   login: admin
 
