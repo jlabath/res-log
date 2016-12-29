@@ -68,6 +68,7 @@ type Msg
     | FetchSucceeded (List Entry.Model)
     | KeyPress Int
     | HistoryMsg Hv.Msg
+    | EntryMsg Entry.Msg
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -138,6 +139,9 @@ update msg model =
                     }
                         |> updateGetAction
 
+        EntryMsg emsg ->
+            updateNoOp model
+
 
 updateNoOp : Model -> ( Model, Cmd Msg )
 updateNoOp model =
@@ -178,7 +182,7 @@ view model =
                     []
 
                 Just entry ->
-                    [ Entry.render entry ]
+                    [ App.map EntryMsg <| Entry.render entry ]
 
         status =
             if model.error == "" then

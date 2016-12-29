@@ -9372,6 +9372,63 @@ var _jlabath$res_log$Generic$fromJson = function (blob) {
 var _jlabath$res_log$Generic$lstDecoder = _jlabath$res_log$Generic$buildLstDecoder(
 	{ctor: '_Tuple0'});
 
+var _jlabath$res_log$Entry$renderValue = function (value) {
+	var _p0 = value;
+	switch (_p0.ctor) {
+		case 'Num':
+			return _elm_lang$html$Html$text(
+				_elm_lang$core$Basics$toString(_p0._0));
+		case 'Txt':
+			return _elm_lang$html$Html$text(
+				A2(
+					_elm_lang$core$Json_Encode$encode,
+					0,
+					_jlabath$res_log$Generic$toJson(
+						_jlabath$res_log$Generic$Txt(_p0._0))));
+		case 'Bln':
+			return _elm_lang$html$Html$text(
+				_p0._0 ? 'true' : 'false');
+		case 'Lst':
+			return _jlabath$res_log$Entry$renderLst(_p0._0);
+		case 'Dct':
+			return _jlabath$res_log$Entry$renderDct(_p0._0);
+		default:
+			return _elm_lang$html$Html$text('null');
+	}
+};
+var _jlabath$res_log$Entry$renderDct = function (dict) {
+	return A2(
+		_elm_lang$html$Html$ul,
+		_elm_lang$core$Native_List.fromArray(
+			[]),
+		A2(
+			_elm_lang$core$List$map,
+			_jlabath$res_log$Entry$renderAttribute,
+			_elm_lang$core$List$reverse(
+				_jlabath$res_log$OrderedDict$toList(dict))));
+};
+var _jlabath$res_log$Entry$renderAttribute = function (_p1) {
+	var _p2 = _p1;
+	return A2(
+		_elm_lang$html$Html$li,
+		_elm_lang$core$Native_List.fromArray(
+			[]),
+		_elm_lang$core$Native_List.fromArray(
+			[
+				_elm_lang$html$Html$text(_p2._0),
+				_elm_lang$html$Html$text(': '),
+				_jlabath$res_log$Entry$renderValue(_p2._1)
+			]));
+};
+var _jlabath$res_log$Entry$renderLst = function (list) {
+	return A2(
+		_elm_lang$html$Html$ol,
+		_elm_lang$core$Native_List.fromArray(
+			[
+				_elm_lang$html$Html_Attributes$start(0)
+			]),
+		A2(_elm_lang$core$List$map, _jlabath$res_log$Entry$renderValue, list));
+};
 var _jlabath$res_log$Entry$render = function (model) {
 	var text = _elm_lang$html$Html$text;
 	var li = _elm_lang$html$Html$li;
@@ -9416,16 +9473,12 @@ var _jlabath$res_log$Entry$render = function (model) {
 							]))
 					])),
 				A2(
-				_elm_lang$html$Html$pre,
+				_elm_lang$html$Html$div,
 				_elm_lang$core$Native_List.fromArray(
 					[]),
 				_elm_lang$core$Native_List.fromArray(
 					[
-						text(
-						A2(
-							_elm_lang$core$Json_Encode$encode,
-							4,
-							_jlabath$res_log$Generic$toJson(model.resource)))
+						_jlabath$res_log$Entry$renderValue(model.resource)
 					]))
 			]));
 };
@@ -9450,6 +9503,7 @@ var _jlabath$res_log$Entry$decode = A3(
 				'fetchdate',
 				_elm_lang$core$Json_Decode$string,
 				_NoRedInk$elm_decode_pipeline$Json_Decode_Pipeline$decode(_jlabath$res_log$Entry$Model)))));
+var _jlabath$res_log$Entry$NoOp = {ctor: 'NoOp'};
 
 var _jlabath$res_log$HistoryView$add = F2(
 	function (m, log) {
@@ -9648,6 +9702,9 @@ var _jlabath$res_log$Main$Model = F7(
 	function (a, b, c, d, e, f, g) {
 		return {resourceType: a, resourceId: b, entries: c, error: d, currentModel: e, status: f, log: g};
 	});
+var _jlabath$res_log$Main$EntryMsg = function (a) {
+	return {ctor: 'EntryMsg', _0: a};
+};
 var _jlabath$res_log$Main$HistoryMsg = function (a) {
 	return {ctor: 'HistoryMsg', _0: a};
 };
@@ -9768,13 +9825,15 @@ var _jlabath$res_log$Main$update = F2(
 				};
 			case 'KeyPress':
 				return _elm_lang$core$Native_Utils.eq(_p4._0, 13) ? _jlabath$res_log$Main$updateGetAction(model) : _jlabath$res_log$Main$updateNoOp(model);
-			default:
+			case 'HistoryMsg':
 				var _p7 = _p4._0;
 				var _p8 = _p7._0;
 				return _jlabath$res_log$Main$updateGetAction(
 					_elm_lang$core$Native_Utils.update(
 						model,
 						{resourceType: _p8.resType, resourceId: _p8.resId}));
+			default:
+				return _jlabath$res_log$Main$updateNoOp(model);
 		}
 	});
 var _jlabath$res_log$Main$ChangeVersion = function (a) {
@@ -9810,7 +9869,10 @@ var _jlabath$res_log$Main$view = function (model) {
 		} else {
 			return _elm_lang$core$Native_List.fromArray(
 				[
-					_jlabath$res_log$Entry$render(_p9._0)
+					A2(
+					_elm_lang$html$Html_App$map,
+					_jlabath$res_log$Main$EntryMsg,
+					_jlabath$res_log$Entry$render(_p9._0))
 				]);
 		}
 	}();

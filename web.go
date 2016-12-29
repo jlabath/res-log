@@ -14,10 +14,13 @@ import (
 	"text/template"
 	"time"
 
-	"appengine"
-	"appengine/datastore"
-	"appengine/delay"
-	"appengine/urlfetch"
+	"golang.org/x/net/context"
+	"google.golang.org/appengine"
+	"google.golang.org/appengine/datastore"
+	"google.golang.org/appengine/delay"
+	"google.golang.org/appengine/log"
+	"google.golang.org/appengine/urlfetch"
+	"google.golang.org/appengine/user"
 )
 
 func init() {
@@ -28,6 +31,8 @@ func init() {
 	mux.HandleFunc("/r/", receive)
 	mux.Handle("/l", http.NotFoundHandler())
 	mux.HandleFunc("/l/", resourcesView)
+	mux.HandleFunc("/admin/", adminElm)
+	mux.HandleFunc("/purge/", purgeView)
 	http.Handle("/", mux)
 }
 
@@ -39,6 +44,15 @@ func homeElm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := elmTmpl.Execute(w, nil); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
+
+var adminTmpl = template.Must(template.ParseFiles("templates/admin.html"))
+
+func adminElm(w http.ResponseWriter, r *http.Request) {
+	if err := adminTmpl.Execute(w, nil); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -57,13 +71,13 @@ func receive(w http.ResponseWriter, r *http.Request) {
 	ctx := appengine.NewContext(r)
 	err := processBody(ctx, r.Body)
 	if err != nil {
-		ctx.Errorf("failed to process request with error: %v", err)
+		log.Errorf(ctx, "failed to process request with error: %v", err)
 	}
 	w.Header().Add("X-Application-SHA256", AppKey256)
 	fmt.Fprintf(w, "OK")
 }
 
-func processBody(ctx appengine.Context, in io.Reader) error {
+func processBody(ctx context.Context, in io.Reader) error {
 	r, err := pack(in)
 	if err != nil {
 		return err
@@ -89,17 +103,17 @@ type hookStruct struct {
 	Data      *hookDataAttr `json:data`
 }
 
-func processHook(ctx appengine.Context, data []byte) (err error) {
+func processHook(ctx context.Context, data []byte) (err error) {
 	r, err := unpack(bytes.NewBuffer(data))
 	if err != nil {
-		ctx.Errorf("failed to unpack data: %v", err)
+		log.Errorf(ctx, "failed to unpack data: %v", err)
 		return
 	}
 	var events []*hookStruct
 	dec := json.NewDecoder(r)
 	err = dec.Decode(&events)
 	if err != nil {
-		ctx.Errorf("failed to decode json: %v", err)
+		log.Errorf(ctx, "failed to decode json: %v", err)
 		return
 	}
 	for _, v := range events {
@@ -152,7 +166,7 @@ type JSONResource struct {
 	Resource  json.RawMessage `json:"resource"`
 }
 
-func saveResource(c appengine.Context, hook *hookStruct) (err error) {
+func saveResource(c context.Context, hook *hookStruct) (err error) {
 	var uriBuf bytes.Buffer
 	uriBuf.WriteString(hook.Resource)
 	uriBuf.WriteString("/")
@@ -170,14 +184,14 @@ func saveResource(c appengine.Context, hook *hookStruct) (err error) {
 	client := urlfetch.Client(c)
 	req, err := http.NewRequest("GET", hook.Data.Href, nil)
 	if err != nil {
-		c.Errorf("failed to build GET request for: %s", hook.Data.Href)
+		log.Errorf(c, "failed to build GET request for: %s", hook.Data.Href)
 		return
 	}
 	req.Header.Add("Content-Type", "application/json")
 	req.Header.Add("X-Application-Key", cfg.AppKey)
 	resp, err := client.Do(req)
 	if err != nil {
-		c.Errorf("failed to fetch: %s", hook.Data.Href)
+		log.Errorf(c, "failed to fetch: %s", hook.Data.Href)
 		return
 	}
 	//first reader json verif
@@ -189,19 +203,19 @@ func saveResource(c appengine.Context, hook *hookStruct) (err error) {
 	//pack the response returns a final reader
 	pr, err := pack(shar)
 	if err != nil {
-		c.Errorf("failed to pack: %s", hook.Data.Href)
+		log.Errorf(c, "failed to pack: %s", hook.Data.Href)
 		return
 	}
 	pdata, err := ioutil.ReadAll(pr)
 	if err != nil {
-		c.Errorf("failed to read packed: %s", hook.Data.Href)
+		log.Errorf(c, "failed to read packed: %s", hook.Data.Href)
 		return
 	}
 	//now verify that this is ok json
 	var someJSON map[string]interface{}
 	dec := json.NewDecoder(origBuf)
 	if derr := dec.Decode(&someJSON); derr != nil {
-		c.Errorf("failed to properly decode json")
+		log.Errorf(c, "failed to properly decode json")
 		return derr
 	}
 	//create and save
@@ -213,7 +227,7 @@ func saveResource(c appengine.Context, hook *hookStruct) (err error) {
 		Sha1:      hex.EncodeToString(shaw.Sum(nil))}
 	_, err = datastore.Put(c, datastore.NewIncompleteKey(c, "resource", nil), &r)
 	if err != nil {
-		c.Errorf("unable to store resource %#v", r)
+		log.Errorf(c, "unable to store resource %#v", r)
 		return
 	}
 	return
@@ -273,4 +287,83 @@ func resourcesView(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+}
+
+type PurgeInput struct {
+	Before string
+}
+
+func purgeView(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+	ctx := appengine.NewContext(r)
+	if !user.IsAdmin(ctx) {
+		http.Error(w, "Not Authorized", http.StatusUnauthorized)
+		return
+	}
+	var pi PurgeInput
+	err := json.NewDecoder(r.Body).Decode(&pi)
+	if err != nil {
+		log.Errorf(ctx, "failed to process request with error: %v", err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	t, err := time.Parse("2006-01-02", pi.Before)
+	if err != nil {
+		log.Errorf(ctx, "failed to process request with error: %v", err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	purgeBeforeLater.Call(ctx, t, "")
+	w.Header().Add("content-type", "application/json")
+	fmt.Fprintf(w, "\"OK\"")
+}
+
+var purgeBeforeLater = delay.Func("purgeBefore", purgeBefore)
+
+func purgeBefore(ctx context.Context, when time.Time, encCursor string) (err error) {
+	var (
+		stop      bool
+		keys      []*datastore.Key
+		newCursor string
+	)
+	q := datastore.NewQuery("resource").Filter("FetchDate <", when).KeysOnly()
+	if encCursor != "" {
+		cursor, err := datastore.DecodeCursor(encCursor)
+		if err == nil {
+			q = q.Start(cursor)
+		}
+	}
+
+	// Iterate over the results.
+	t := q.Run(ctx)
+	for i := 0; i < 100; i++ {
+		key, err := t.Next(nil)
+		if err == datastore.Done {
+			stop = true
+			break
+		}
+		if err != nil {
+			log.Errorf(ctx, "fetching next Key: %v", err)
+			return err
+			break
+		}
+		//do something with it
+		keys = append(keys, key)
+	}
+
+	// Get updated cursor and store it for next time.
+	if cursor, err := t.Cursor(); err == nil {
+		newCursor = cursor.String()
+	}
+
+	err = datastore.DeleteMulti(ctx, keys)
+	if err != nil {
+		log.Errorf(ctx, "trouble with multi delete: %v", err)
+		return err
+	}
+	if !stop {
+		f := delay.Func("purge_step "+newCursor, purgeBefore)
+		f.Call(ctx, when, newCursor)
+	}
+	return nil
 }

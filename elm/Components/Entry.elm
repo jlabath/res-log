@@ -4,7 +4,9 @@ import Json.Decode as Decode
 import Json.Encode as Encode
 import Json.Decode.Pipeline as Pipeline
 import Generic
-import Html
+import Html exposing (Html)
+import OrderedDict as Od
+import Html.Attributes as Attributes
 
 
 type alias Model =
@@ -28,7 +30,11 @@ decode =
         |> Pipeline.required "sha1" Decode.string
 
 
-render : Model -> Html.Html a
+type Msg
+    = NoOp
+
+
+render : Model -> Html.Html Msg
 render model =
     let
         li =
@@ -43,10 +49,46 @@ render model =
                 , li [] [ text <| "Fetch Date: " ++ model.fetchdate ]
                 , li [] [ text <| "Hook Date: " ++ model.hookdate ]
                 ]
-            , Html.pre []
-                [ model.resource
-                    |> Generic.toJson
-                    |> Encode.encode 4
-                    |> text
-                ]
+            , Html.div [] [ renderValue model.resource ]
             ]
+
+
+renderValue : Generic.Value -> Html.Html Msg
+renderValue value =
+    case value of
+        Generic.Num num ->
+            Html.text <| toString num
+
+        Generic.Txt txt ->
+            Html.text <| Encode.encode 0 <| Generic.toJson <| Generic.Txt txt
+
+        Generic.Bln bln ->
+            Html.text <|
+                if bln then
+                    "true"
+                else
+                    "false"
+
+        Generic.Lst lst ->
+            renderLst lst
+
+        Generic.Dct dct ->
+            renderDct dct
+
+        Generic.Nil ->
+            Html.text "null"
+
+
+renderDct : Od.OrderedDict String Generic.Value -> Html.Html Msg
+renderDct dict =
+    Html.ul [] <| List.map renderAttribute <| List.reverse <| Od.toList dict
+
+
+renderAttribute : ( String, Generic.Value ) -> Html.Html Msg
+renderAttribute ( key, val ) =
+    Html.li [] [ Html.text key, Html.text ": ", renderValue val ]
+
+
+renderLst : List Generic.Value -> Html.Html Msg
+renderLst list =
+    Html.ol [ Attributes.start 0 ] <| List.map renderValue list
