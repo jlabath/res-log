@@ -9372,28 +9372,51 @@ var _jlabath$res_log$Generic$fromJson = function (blob) {
 var _jlabath$res_log$Generic$lstDecoder = _jlabath$res_log$Generic$buildLstDecoder(
 	{ctor: '_Tuple0'});
 
+var _jlabath$res_log$Entry$span = F2(
+	function (className, elem) {
+		return A2(
+			_elm_lang$html$Html$span,
+			_elm_lang$core$Native_List.fromArray(
+				[
+					_elm_lang$html$Html_Attributes$class(className)
+				]),
+			_elm_lang$core$Native_List.fromArray(
+				[elem]));
+	});
 var _jlabath$res_log$Entry$renderValue = function (value) {
 	var _p0 = value;
 	switch (_p0.ctor) {
 		case 'Num':
-			return _elm_lang$html$Html$text(
-				_elm_lang$core$Basics$toString(_p0._0));
+			return A2(
+				_jlabath$res_log$Entry$span,
+				'jsnum',
+				_elm_lang$html$Html$text(
+					_elm_lang$core$Basics$toString(_p0._0)));
 		case 'Txt':
-			return _elm_lang$html$Html$text(
-				A2(
-					_elm_lang$core$Json_Encode$encode,
-					0,
-					_jlabath$res_log$Generic$toJson(
-						_jlabath$res_log$Generic$Txt(_p0._0))));
+			return A2(
+				_jlabath$res_log$Entry$span,
+				'jsstr',
+				_elm_lang$html$Html$text(
+					A2(
+						_elm_lang$core$Json_Encode$encode,
+						0,
+						_jlabath$res_log$Generic$toJson(
+							_jlabath$res_log$Generic$Txt(_p0._0)))));
 		case 'Bln':
-			return _elm_lang$html$Html$text(
-				_p0._0 ? 'true' : 'false');
+			return A2(
+				_jlabath$res_log$Entry$span,
+				'jsbool',
+				_elm_lang$html$Html$text(
+					_p0._0 ? 'true' : 'false'));
 		case 'Lst':
 			return _jlabath$res_log$Entry$renderLst(_p0._0);
 		case 'Dct':
 			return _jlabath$res_log$Entry$renderDct(_p0._0);
 		default:
-			return _elm_lang$html$Html$text('null');
+			return A2(
+				_jlabath$res_log$Entry$span,
+				'jsnull',
+				_elm_lang$html$Html$text('null'));
 	}
 };
 var _jlabath$res_log$Entry$renderDct = function (dict) {
@@ -9409,13 +9432,24 @@ var _jlabath$res_log$Entry$renderDct = function (dict) {
 };
 var _jlabath$res_log$Entry$renderAttribute = function (_p1) {
 	var _p2 = _p1;
+	var jsattr = function (key) {
+		return A2(
+			_jlabath$res_log$Entry$span,
+			'jsattr',
+			_elm_lang$html$Html$text(
+				A2(
+					_elm_lang$core$Json_Encode$encode,
+					0,
+					_jlabath$res_log$Generic$toJson(
+						_jlabath$res_log$Generic$Txt(key)))));
+	};
 	return A2(
 		_elm_lang$html$Html$li,
 		_elm_lang$core$Native_List.fromArray(
 			[]),
 		_elm_lang$core$Native_List.fromArray(
 			[
-				_elm_lang$html$Html$text(_p2._0),
+				jsattr(_p2._0),
 				_elm_lang$html$Html$text(': '),
 				_jlabath$res_log$Entry$renderValue(_p2._1)
 			]));
@@ -9424,10 +9458,18 @@ var _jlabath$res_log$Entry$renderLst = function (list) {
 	return A2(
 		_elm_lang$html$Html$ol,
 		_elm_lang$core$Native_List.fromArray(
+			[]),
+		A2(_elm_lang$core$List$map, _jlabath$res_log$Entry$renderItem, list));
+};
+var _jlabath$res_log$Entry$renderItem = function (val) {
+	return A2(
+		_elm_lang$html$Html$li,
+		_elm_lang$core$Native_List.fromArray(
+			[]),
+		_elm_lang$core$Native_List.fromArray(
 			[
-				_elm_lang$html$Html_Attributes$start(0)
-			]),
-		A2(_elm_lang$core$List$map, _jlabath$res_log$Entry$renderValue, list));
+				_jlabath$res_log$Entry$renderValue(val)
+			]));
 };
 var _jlabath$res_log$Entry$render = function (model) {
 	var text = _elm_lang$html$Html$text;
@@ -9475,7 +9517,9 @@ var _jlabath$res_log$Entry$render = function (model) {
 				A2(
 				_elm_lang$html$Html$div,
 				_elm_lang$core$Native_List.fromArray(
-					[]),
+					[
+						_elm_lang$html$Html_Attributes$class('jsview')
+					]),
 				_elm_lang$core$Native_List.fromArray(
 					[
 						_jlabath$res_log$Entry$renderValue(model.resource)
@@ -9721,7 +9765,7 @@ var _jlabath$res_log$Main$getData = F2(
 	function (resType, resId) {
 		var url = A2(
 			_elm_lang$core$Basics_ops['++'],
-			'http://res-log.appspot.com/l/',
+			'/l/',
 			A2(
 				_elm_lang$core$Basics_ops['++'],
 				resType,

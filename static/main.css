@@ -20,3 +20,49 @@
     padding: 10px;
     font-size: small;
 }
+
+.jsview ul {
+    list-style: none;
+    margin:0 0 0 1em; /* indentation */
+    padding:0;
+    list-style-type: none;
+    position:relative;
+}
+
+.jsview ol {
+    list-style: none;
+    margin:0 0 0 1em; /* indentation */
+    padding:0;
+    list-style-type: '-';
+    position:relative;    
+}
+
+.jsstr {
+    padding-left: 0.5em;
+    color: #009900;
+}
+
+.jsnum {
+    padding-left: 0.5em;
+    color: #004d99;
+}
+
+.jsattr {
+    padding-left: 0.5em;    
+    color: #60B5CC;
+}
+
+.jsnull {
+    padding-left: 0.5em;    
+    color: #660066;
+}
+
+.jsbool {
+    padding-left: 0.5em;    
+    color: #9900ff;
+}
+
+.jsview li {
+    padding-left: 0.5em;
+    line-height: 1.5em;
+}

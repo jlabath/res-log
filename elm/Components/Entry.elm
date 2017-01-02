@@ -49,7 +49,7 @@ render model =
                 , li [] [ text <| "Fetch Date: " ++ model.fetchdate ]
                 , li [] [ text <| "Hook Date: " ++ model.hookdate ]
                 ]
-            , Html.div [] [ renderValue model.resource ]
+            , Html.div [ Attributes.class "jsview" ] [ renderValue model.resource ]
             ]
 
 
@@ -57,17 +57,20 @@ renderValue : Generic.Value -> Html.Html Msg
 renderValue value =
     case value of
         Generic.Num num ->
-            Html.text <| toString num
+            toString num
+                |> Html.text
+                |> span "jsnum"
 
         Generic.Txt txt ->
-            Html.text <| Encode.encode 0 <| Generic.toJson <| Generic.Txt txt
+            span "jsstr" <| Html.text <| Encode.encode 0 <| Generic.toJson <| Generic.Txt txt
 
         Generic.Bln bln ->
-            Html.text <|
-                if bln then
-                    "true"
-                else
-                    "false"
+            span "jsbool" <|
+                Html.text <|
+                    if bln then
+                        "true"
+                    else
+                        "false"
 
         Generic.Lst lst ->
             renderLst lst
@@ -76,7 +79,7 @@ renderValue value =
             renderDct dct
 
         Generic.Nil ->
-            Html.text "null"
+            Html.text "null" |> span "jsnull"
 
 
 renderDct : Od.OrderedDict String Generic.Value -> Html.Html Msg
@@ -86,9 +89,28 @@ renderDct dict =
 
 renderAttribute : ( String, Generic.Value ) -> Html.Html Msg
 renderAttribute ( key, val ) =
-    Html.li [] [ Html.text key, Html.text ": ", renderValue val ]
+    let
+        jsattr key =
+            span "jsattr" <|
+                Html.text <|
+                    Encode.encode 0 <|
+                        Generic.toJson <|
+                            Generic.Txt key
+    in
+        Html.li [] [ jsattr key, Html.text ": ", renderValue val ]
+
+
+renderItem : Generic.Value -> Html.Html Msg
+renderItem val =
+    Html.li [] [ renderValue val ]
 
 
 renderLst : List Generic.Value -> Html.Html Msg
 renderLst list =
-    Html.ol [ Attributes.start 0 ] <| List.map renderValue list
+    Html.ol [ ] <|
+        List.map renderItem list
+
+
+span : String -> Html Msg -> Html Msg
+span className elem =
+    Html.span [ Attributes.class className ] [ elem ]

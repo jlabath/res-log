@@ -274,7 +274,7 @@ getData : String -> String -> Cmd Msg
 getData resType resId =
     let
         url =
-            "http://res-log.appspot.com/l/" ++ resType ++ "/" ++ resId
+            "/l/" ++ resType ++ "/" ++ resId
     in
         Task.perform FetchFail FetchSucceeded (Http.get decodeData url)
 
