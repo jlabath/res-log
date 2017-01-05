@@ -51,3 +51,12 @@ func unpack(in io.Reader) (io.Reader, error) {
 	}
 	return buf, nil
 }
+
+func unpackTo(dst io.Writer, in io.Reader) (int64, error) {
+	gz, err := gzip.NewReader(in)
+	if err != nil {
+		return 0, err
+	}
+	defer gz.Close()
+	return io.Copy(dst, gz)
+}

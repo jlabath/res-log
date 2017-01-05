@@ -1,6 +1,7 @@
 package library
 
 import (
+	"bufio"
 	"bytes"
 	"crypto/sha1"
 	"encoding/hex"
@@ -93,15 +94,15 @@ func processBody(ctx context.Context, in io.Reader) error {
 }
 
 type hookDataAttr struct {
-	ID   interface{} `json:id`
-	Href string      `json:href`
+	ID   interface{} `json:"id"`
+	Href string      `json:"href"`
 }
 
 type hookStruct struct {
-	EventType string        `json:event_type`
-	Resource  string        `json:resource`
-	Created   string        `json:created`
-	Data      *hookDataAttr `json:data`
+	EventType string        `json:"event_type"`
+	Resource  string        `json:"resource"`
+	Created   string        `json:"created"`
+	Data      *hookDataAttr `json:"data"`
 }
 
 func processHook(ctx context.Context, data []byte) (err error) {
@@ -136,35 +137,63 @@ type Resource struct {
 
 const jsLayout = "2006-01-02T15:04:05Z"
 
-//ToJSON converts this Resource into JSONResource
-func (r *Resource) ToJSON() (*JSONResource, error) {
-	v := JSONResource{
-		FetchDate: r.FetchDate.Format(jsLayout),
-		HookDate:  r.HookDate,
-		Sha1:      r.Sha1}
-	if len(r.Data) > 0 {
-		ur, err := unpack(bytes.NewBuffer(r.Data))
-		if err != nil {
-			return nil, err
-		}
-		buf, err := ioutil.ReadAll(ur)
-		if err != nil {
-			return nil, err
-		}
-		v.Resource = json.RawMessage(buf)
-	} else {
-		v.Resource = json.RawMessage([]byte("null"))
-	}
-	return &v, nil
+//CountingWriter keeps track of the number of bytes written
+type CountingWriter struct {
+	Written int
+	w       io.Writer
 }
 
-//JSONResource is the REST suitable representation of a Resource
-//this is what's consumed by the User Interface javascript
-type JSONResource struct {
-	FetchDate string          `json:"fetchdate"`
-	HookDate  string          `json:"hookdate"`
-	Sha1      string          `json:"sha1"`
-	Resource  json.RawMessage `json:"resource"`
+//Write implements io.Writer
+func (cw *CountingWriter) Write(data []byte) (int, error) {
+	num, err := cw.w.Write(data)
+	cw.Written = cw.Written + num
+	return num, err
+}
+
+func (cw *CountingWriter) WriteString(str string) (int, error) {
+	return cw.Write([]byte(str))
+}
+
+//NewCountingWriter returns new instance of counting writer
+func NewCountingWriter(out io.Writer) *CountingWriter {
+	return &CountingWriter{
+		0, out,
+	}
+}
+
+//WriteAsJSON writes this resource to Writer as JSON
+func (r *Resource) WriteAsJSON(out io.Writer) (int, error) {
+	buf := NewCountingWriter(out)
+	buf.WriteString(`{"fetchdate":`)
+	data, err := json.Marshal(r.FetchDate.Format(jsLayout))
+	if err != nil {
+		return 0, err
+	}
+	buf.Write(data)
+	buf.WriteString(`,"hookdate":"`)
+	buf.WriteString(r.HookDate)
+	buf.WriteString(`","sha1":"`)
+	buf.WriteString(r.Sha1)
+	buf.WriteString(`","resource":`)
+	if len(r.Data) > 0 {
+		_, err := unpackTo(buf, bytes.NewBuffer(r.Data))
+		if err != nil {
+			return 0, err
+		}
+	} else {
+		buf.WriteString("null")
+	}
+	buf.WriteString("}")
+	return buf.Written, nil
+}
+
+//MarshalJSON implements the json.Marshaller
+func (r *Resource) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	if _, err := r.WriteAsJSON(&buf); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
 }
 
 func saveResource(c context.Context, hook *hookStruct) (err error) {
@@ -248,6 +277,8 @@ func getURLPart(prefix, urlpath string, idx int) (r string) {
 	return
 }
 
+const MAX_RESP_SIZE = 30 * 1024 * 1024 //30MB arbitrary arrived at via 500 errors
+
 func resourcesView(w http.ResponseWriter, r *http.Request) {
 	//enable the CORS preflight wonder used by browsers
 	w.Header().Add("Access-Control-Allow-Origin", "*")
@@ -257,6 +288,10 @@ func resourcesView(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Add("Access-Control-Max-Age", "3600")
 	//end of CORS
+	//response content type header
+	w.Header().Add("content-type", "application/json")
+
+	//query
 	restype := getURLPart("/l/", r.URL.Path, 0)
 	resid := getURLPart("/l/", r.URL.Path, 1)
 	if resid == "" || restype == "" {
@@ -268,28 +303,43 @@ func resourcesView(w http.ResponseWriter, r *http.Request) {
 	str.WriteString("/")
 	str.WriteString(resid)
 	q := datastore.NewQuery("resource").Filter("Uri =", str.String()).Order("-FetchDate")
-	var resources []*Resource
-	jsonResources := make([]*JSONResource, 0, 10)
-	if _, err := q.GetAll(c, &resources); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	for _, v := range resources {
-		x, xerr := v.ToJSON()
-		if xerr != nil {
-			http.Error(w, xerr.Error(), http.StatusInternalServerError)
+	//iterate query and write it to response up to a limit
+	var (
+		totalBytes int64
+		isFirst    bool = true
+	)
+	t := q.Run(c)
+	out := bufio.NewWriter(w)
+	out.WriteString("[")
+	for {
+		var res Resource
+		_, err := t.Next(&res)
+		if err == datastore.Done {
+			break
+		} else if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		jsonResources = append(jsonResources, x)
+		if !isFirst {
+			out.WriteString(",")
+		} else {
+			isFirst = false
+		}
+		size, err := res.WriteAsJSON(out)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		totalBytes = totalBytes + int64(size)
+		if totalBytes >= MAX_RESP_SIZE {
+			break
+		}
 	}
-	w.Header().Add("content-type", "application/json")
-	enc := json.NewEncoder(w)
-	if err := enc.Encode(jsonResources); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
+	out.WriteString("]")
+	out.Flush()
 }
 
+//PurgeInput represents the data struct for purge operation
 type PurgeInput struct {
 	Before string
 }
@@ -348,7 +398,6 @@ func purgeBefore(ctx context.Context, when time.Time, encCursor string) (err err
 		if err != nil {
 			log.Errorf(ctx, "fetching next Key: %v", err)
 			return err
-			break
 		}
 		//do something with it
 		keys = append(keys, key)
