@@ -6,6 +6,7 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -20,6 +21,7 @@ import (
 	"google.golang.org/appengine/datastore"
 	"google.golang.org/appengine/delay"
 	"google.golang.org/appengine/log"
+	"google.golang.org/appengine/taskqueue"
 	"google.golang.org/appengine/urlfetch"
 	"google.golang.org/appengine/user"
 )
@@ -80,7 +82,7 @@ func receive(w http.ResponseWriter, r *http.Request) {
 }
 
 func processBody(ctx context.Context, in io.Reader) error {
-	r, err := pack(in)
+	r, err := pack(NewCapReader(8*1024*1024, in)) //8MB arbitrary limit
 	if err != nil {
 		return err
 	}
@@ -105,23 +107,41 @@ type hookStruct struct {
 	Data      *hookDataAttr `json:"data"`
 }
 
-func processHook(ctx context.Context, data []byte) (err error) {
+func processHook(ctx context.Context, data []byte) error {
 	r, err := unpack(bytes.NewBuffer(data))
 	if err != nil {
-		log.Errorf(ctx, "failed to unpack data: %v", err)
-		return
+		log.Errorf(ctx, "abandon processHook failed to unpack data: %v", err)
+		return nil
 	}
 	var events []*hookStruct
 	dec := json.NewDecoder(r)
 	err = dec.Decode(&events)
 	if err != nil {
-		log.Errorf(ctx, "failed to decode json: %v", err)
-		return
+		log.Errorf(ctx, "abandon processHook failed to decode json: %v", err)
+		return nil
 	}
 	for _, v := range events {
-		saveResourceLater.Call(ctx, v)
+		task, err := saveResourceLater.Task(v)
+		if err != nil {
+			return err
+		}
+		// set retry options for the task
+		// min/max back off of 5 mins means
+		// we will retry every 5 minutes
+		// 20 times
+		// after which point it will be abandoned
+		ropt := taskqueue.RetryOptions{
+			RetryLimit: 20,
+			MinBackoff: 5 * time.Minute,
+			MaxBackoff: 5 * time.Minute,
+		}
+		task.RetryOptions = &ropt
+		_, err = taskqueue.Add(ctx, task, "")
+		if err != nil {
+			return err
+		}
 	}
-	return
+	return nil
 }
 
 var processHookLater = delay.Func("processHookKey", processHook)
@@ -150,6 +170,7 @@ func (cw *CountingWriter) Write(data []byte) (int, error) {
 	return num, err
 }
 
+//WriteString convenience wrapper
 func (cw *CountingWriter) WriteString(str string) (int, error) {
 	return cw.Write([]byte(str))
 }
@@ -158,6 +179,34 @@ func (cw *CountingWriter) WriteString(str string) (int, error) {
 func NewCountingWriter(out io.Writer) *CountingWriter {
 	return &CountingWriter{
 		0, out,
+	}
+}
+
+//ErrCapReached is returned by CapReader if the limit (cap) was reached
+var ErrCapReached = errors.New("data read cap was reached")
+
+//CapReader keeps track of the number of bytes read
+type CapReader struct {
+	numRead int
+	cap     int
+	r       io.Reader
+}
+
+//Read implements io.Reader
+func (cr *CapReader) Read(p []byte) (int, error) {
+	num, err := cr.r.Read(p)
+	cr.numRead = cr.numRead + num
+	if cr.numRead > cr.cap {
+		return num, ErrCapReached
+	}
+	return num, err
+}
+
+//NewCapReader returns new instance of cap reader
+func NewCapReader(limit int, in io.Reader) *CapReader {
+	return &CapReader{
+		cap: limit,
+		r:   in,
 	}
 }
 
@@ -224,21 +273,37 @@ func saveResource(c context.Context, hook *hookStruct) (err error) {
 		log.Errorf(c, "failed to fetch: %s", hook.Data.Href)
 		return
 	}
+	defer resp.Body.Close()
+
 	//first reader json verif
 	origBuf := new(bytes.Buffer)
-	firstR := io.TeeReader(resp.Body, origBuf)
+	firstR := io.TeeReader(NewCapReader(8*1024*1024, resp.Body), origBuf) //arbitrary 8MB limit
 	//before packing calc the sha1 - second reader
 	shaw := sha1.New()
 	shar := io.TeeReader(firstR, shaw)
 	//pack the response returns a final reader
 	pr, err := pack(shar)
 	if err != nil {
+		if err == ErrCapReached {
+			log.Errorf(c, "cap reached when reading response, abandon: %s", hook.Data.Href)
+			err = nil
+			return
+		}
 		log.Errorf(c, "failed to pack: %s", hook.Data.Href)
 		return
 	}
 	pdata, err := ioutil.ReadAll(pr)
 	if err != nil {
 		log.Errorf(c, "failed to read packed: %s", hook.Data.Href)
+		return
+	}
+	if len(pdata) > MaxDataStoreByteSize {
+		log.Errorf(
+			c,
+			"compressed resource is too large %d abandond: %s",
+			len(pdata),
+			hook.Data.Href)
+		err = nil
 		return
 	}
 	//now verify that this is ok json
@@ -263,6 +328,9 @@ func saveResource(c context.Context, hook *hookStruct) (err error) {
 	return
 }
 
+//MaxDataStoreByteSize is the largest size a blob in DS can have
+const MaxDataStoreByteSize = 1048576
+
 var saveResourceLater = delay.Func("saveResourceKey", saveResource)
 
 func getURLPart(prefix, urlpath string, idx int) (r string) {
@@ -277,7 +345,8 @@ func getURLPart(prefix, urlpath string, idx int) (r string) {
 	return
 }
 
-const MAX_RESP_SIZE = 30 * 1024 * 1024 //30MB arbitrary arrived at via 500 errors
+//MaxRespSize is maximum response size we are willing to return
+const MaxRespSize = 30 * 1024 * 1024 //30MB arbitrary arrived at via 500 errors
 
 func resourcesView(w http.ResponseWriter, r *http.Request) {
 	//enable the CORS preflight wonder used by browsers
@@ -306,7 +375,7 @@ func resourcesView(w http.ResponseWriter, r *http.Request) {
 	//iterate query and write it to response up to a limit
 	var (
 		totalBytes int64
-		isFirst    bool = true
+		isFirst    = true
 	)
 	t := q.Run(c)
 	out := bufio.NewWriter(w)
@@ -331,7 +400,7 @@ func resourcesView(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		totalBytes = totalBytes + int64(size)
-		if totalBytes >= MAX_RESP_SIZE {
+		if totalBytes >= MaxRespSize {
 			break
 		}
 	}
