@@ -1,5 +1,3 @@
-application: res-log
-version: 1d
 runtime: go
 api_version: go1
 

@@ -492,7 +492,7 @@ func purgeBefore(ctx context.Context, when time.Time, encCursor string) (err err
 func dailyView(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	ctx := appengine.NewContext(r)
-	t := time.Now().UTC().Add(-365 * 24 * time.Hour)
+	t := time.Now().UTC().Add(-305 * 24 * time.Hour)
 	purgeBeforeLater.Call(ctx, t, "")
 	w.Header().Add("content-type", "application/json")
 	fmt.Fprintf(w, "\"OK\"")
