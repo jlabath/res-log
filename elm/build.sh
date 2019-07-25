@@ -1,2 +1,2 @@
 #!/bin/sh
-elm-make Main.elm --warn --output=../static/main.js
+elm make Main.elm --optimize --output=../static/main.js

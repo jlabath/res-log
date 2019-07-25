@@ -1,8 +1,9 @@
-package library
+package main
 
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"crypto/sha1"
 	"encoding/hex"
 	"encoding/json"
@@ -10,34 +11,31 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
 	"text/template"
 	"time"
 
-	"golang.org/x/net/context"
-	"google.golang.org/appengine"
-	"google.golang.org/appengine/datastore"
+	"cloud.google.com/go/datastore"
+	"google.golang.org/api/iterator"
 	"google.golang.org/appengine/delay"
-	"google.golang.org/appengine/log"
 	"google.golang.org/appengine/taskqueue"
-	"google.golang.org/appengine/urlfetch"
-	"google.golang.org/appengine/user"
 )
 
-func init() {
+const projectID = "res-log"
+
+func getMux() *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", homeElm)
-	mux.HandleFunc("/legacy/", home)
 	mux.HandleFunc("/r", receive)
 	mux.HandleFunc("/r/", receive)
 	mux.Handle("/l", http.NotFoundHandler())
 	mux.HandleFunc("/l/", resourcesView)
-	mux.HandleFunc("/admin/", adminElm)
-	mux.HandleFunc("/purge/", purgeView)
 	mux.HandleFunc("/cron/daily", dailyView)
-	http.Handle("/", mux)
+	return mux
+
 }
 
 var elmTmpl = template.Must(template.ParseFiles("templates/index_elm.html"))
@@ -53,29 +51,11 @@ func homeElm(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-var adminTmpl = template.Must(template.ParseFiles("templates/admin.html"))
-
-func adminElm(w http.ResponseWriter, r *http.Request) {
-	if err := adminTmpl.Execute(w, nil); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-}
-
-var homeTmpl = template.Must(template.ParseFiles("templates/index.html"))
-
-func home(w http.ResponseWriter, r *http.Request) {
-	if err := homeTmpl.Execute(w, nil); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-}
-
 func receive(w http.ResponseWriter, r *http.Request) {
-	ctx := appengine.NewContext(r)
+	ctx := r.Context()
 	err := processBody(ctx, r.Body)
 	if err != nil {
-		log.Errorf(ctx, "failed to process request with error: %v", err)
+		log.Printf("failed to process request with error: %v", err)
 	}
 	w.Header().Add("X-Application-SHA256", AppKey256)
 	fmt.Fprintf(w, "OK")
@@ -110,14 +90,14 @@ type hookStruct struct {
 func processHook(ctx context.Context, data []byte) error {
 	r, err := unpack(bytes.NewBuffer(data))
 	if err != nil {
-		log.Errorf(ctx, "abandon processHook failed to unpack data: %v", err)
+		log.Printf("abandon processHook failed to unpack data: %v", err)
 		return nil
 	}
 	var events []*hookStruct
 	dec := json.NewDecoder(r)
 	err = dec.Decode(&events)
 	if err != nil {
-		log.Errorf(ctx, "abandon processHook failed to decode json: %v", err)
+		log.Printf("abandon processHook failed to decode json: %v", err)
 		return nil
 	}
 	for _, v := range events {
@@ -260,17 +240,17 @@ func saveResource(c context.Context, hook *hookStruct) (err error) {
 		return fmt.Errorf("Unexpected type for Hook.Data.ID: %T", t)
 	}
 	//fetch the resource
-	client := urlfetch.Client(c)
+	client := http.DefaultClient
 	req, err := http.NewRequest("GET", hook.Data.Href, nil)
 	if err != nil {
-		log.Errorf(c, "failed to build GET request for: %s", hook.Data.Href)
+		log.Printf("failed to build GET request for: %s", hook.Data.Href)
 		return
 	}
 	req.Header.Add("Content-Type", "application/json")
 	req.Header.Add("X-Application-Key", cfg.AppKey)
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Errorf(c, "failed to fetch: %s", hook.Data.Href)
+		log.Printf("failed to fetch: %s", hook.Data.Href)
 		return
 	}
 	defer resp.Body.Close()
@@ -285,21 +265,20 @@ func saveResource(c context.Context, hook *hookStruct) (err error) {
 	pr, err := pack(shar)
 	if err != nil {
 		if err == ErrCapReached {
-			log.Errorf(c, "cap reached when reading response, abandon: %s", hook.Data.Href)
+			log.Printf("cap reached when reading response, abandon: %s", hook.Data.Href)
 			err = nil
 			return
 		}
-		log.Errorf(c, "failed to pack: %s", hook.Data.Href)
+		log.Printf("failed to pack: %s", hook.Data.Href)
 		return
 	}
 	pdata, err := ioutil.ReadAll(pr)
 	if err != nil {
-		log.Errorf(c, "failed to read packed: %s", hook.Data.Href)
+		log.Printf("failed to read packed: %s", hook.Data.Href)
 		return
 	}
 	if len(pdata) > MaxDataStoreByteSize {
-		log.Errorf(
-			c,
+		log.Printf(
 			"compressed resource is too large %d abandond: %s",
 			len(pdata),
 			hook.Data.Href)
@@ -310,7 +289,7 @@ func saveResource(c context.Context, hook *hookStruct) (err error) {
 	var someJSON map[string]interface{}
 	dec := json.NewDecoder(origBuf)
 	if derr := dec.Decode(&someJSON); derr != nil {
-		log.Errorf(c, "failed to properly decode json")
+		log.Printf("failed to properly decode json")
 		return derr
 	}
 	//create and save
@@ -320,9 +299,16 @@ func saveResource(c context.Context, hook *hookStruct) (err error) {
 		Data:      pdata,
 		FetchDate: time.Now().UTC(),
 		Sha1:      hex.EncodeToString(shaw.Sum(nil))}
-	_, err = datastore.Put(c, datastore.NewIncompleteKey(c, "resource", nil), &r)
+
+	dsClient, err := datastore.NewClient(c, projectID)
 	if err != nil {
-		log.Errorf(c, "unable to store resource %#v", r)
+		log.Printf("unable to create Datastore client %v", err)
+		return
+	}
+
+	_, err = dsClient.Put(c, datastore.IncompleteKey("resource", nil), &r)
+	if err != nil {
+		log.Printf("unable to store resource %#v", r)
 		return
 	}
 	return
@@ -367,7 +353,7 @@ func resourcesView(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "missing resource type or ID", http.StatusBadRequest)
 		return
 	}
-	c := appengine.NewContext(r)
+	c := r.Context()
 	str := bytes.NewBufferString(restype)
 	str.WriteString("/")
 	str.WriteString(resid)
@@ -377,13 +363,20 @@ func resourcesView(w http.ResponseWriter, r *http.Request) {
 		totalBytes int64
 		isFirst    = true
 	)
-	t := q.Run(c)
+	dsClient, err := datastore.NewClient(c, projectID)
+	if err != nil {
+		// TODO: Handle error.
+		log.Printf("Failed to create a datastore client %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	t := dsClient.Run(c, q)
 	out := bufio.NewWriter(w)
 	out.WriteString("[")
 	for {
 		var res Resource
 		_, err := t.Next(&res)
-		if err == datastore.Done {
+		if err == iterator.Done {
 			break
 		} else if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -413,31 +406,6 @@ type PurgeInput struct {
 	Before string
 }
 
-func purgeView(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
-	ctx := appengine.NewContext(r)
-	if !user.IsAdmin(ctx) {
-		http.Error(w, "Not Authorized", http.StatusUnauthorized)
-		return
-	}
-	var pi PurgeInput
-	err := json.NewDecoder(r.Body).Decode(&pi)
-	if err != nil {
-		log.Errorf(ctx, "failed to process request with error: %v", err)
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	t, err := time.Parse("2006-01-02", pi.Before)
-	if err != nil {
-		log.Errorf(ctx, "failed to process request with error: %v", err)
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	purgeBeforeLater.Call(ctx, t, "")
-	w.Header().Add("content-type", "application/json")
-	fmt.Fprintf(w, "\"OK\"")
-}
-
 var purgeBeforeLater = delay.Func("purgeBefore", purgeBefore)
 
 func purgeBefore(ctx context.Context, when time.Time, encCursor string) (err error) {
@@ -453,19 +421,25 @@ func purgeBefore(ctx context.Context, when time.Time, encCursor string) (err err
 			q = q.Start(cursor)
 		}
 	} else {
-		log.Debugf(ctx, "Starting purge of anything older than %v", when)
+		log.Printf("Starting purge of anything older than %v", when)
 	}
 
 	// Iterate over the results.
-	t := q.Run(ctx)
+	dsClient, err := datastore.NewClient(ctx, projectID)
+	if err != nil {
+		log.Printf("unable to create Datastore client %v", err)
+		return
+	}
+
+	t := dsClient.Run(ctx, q)
 	for i := 0; i < 100; i++ {
 		key, err := t.Next(nil)
-		if err == datastore.Done {
+		if err == iterator.Done {
 			stop = true
 			break
 		}
 		if err != nil {
-			log.Errorf(ctx, "fetching next Key: %v", err)
+			log.Printf("fetching next Key: %v", err)
 			return err
 		}
 		//do something with it
@@ -477,9 +451,9 @@ func purgeBefore(ctx context.Context, when time.Time, encCursor string) (err err
 		newCursor = cursor.String()
 	}
 
-	err = datastore.DeleteMulti(ctx, keys)
+	err = dsClient.DeleteMulti(ctx, keys)
 	if err != nil {
-		log.Errorf(ctx, "trouble with multi delete: %v", err)
+		log.Printf("trouble with multi delete: %v", err)
 		return err
 	}
 	if !stop {
@@ -491,7 +465,7 @@ func purgeBefore(ctx context.Context, when time.Time, encCursor string) (err err
 
 func dailyView(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
-	ctx := appengine.NewContext(r)
+	ctx := r.Context()
 	t := time.Now().UTC().Add(-92 * 24 * time.Hour)
 	purgeBeforeLater.Call(ctx, t, "")
 	w.Header().Add("content-type", "application/json")
