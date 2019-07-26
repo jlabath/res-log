@@ -20,8 +20,6 @@ import (
 
 	"cloud.google.com/go/datastore"
 	"google.golang.org/api/iterator"
-	"google.golang.org/appengine/delay"
-	"google.golang.org/appengine/taskqueue"
 )
 
 const projectID = "res-log"
@@ -34,8 +32,8 @@ func getMux() *http.ServeMux {
 	mux.Handle("/l", http.NotFoundHandler())
 	mux.HandleFunc("/l/", resourcesView)
 	mux.HandleFunc("/cron/daily", dailyView)
+	mux.Handle("/task", getTasksHandler())
 	return mux
-
 }
 
 var elmTmpl = template.Must(template.ParseFiles("templates/index_elm.html"))
@@ -71,7 +69,7 @@ func processBody(ctx context.Context, in io.Reader) error {
 		return err
 	}
 	//ctx.Infof("processed data long %d", len(data))
-	processHookLater.Call(ctx, data)
+	processHookLater(ctx, data)
 	return nil
 }
 
@@ -87,8 +85,8 @@ type hookStruct struct {
 	Data      *hookDataAttr `json:"data"`
 }
 
-func processHook(ctx context.Context, data []byte) error {
-	r, err := unpack(bytes.NewBuffer(data))
+func processHook(ctx context.Context, in io.Reader) error {
+	r, err := unpack(in)
 	if err != nil {
 		log.Printf("abandon processHook failed to unpack data: %v", err)
 		return nil
@@ -101,30 +99,32 @@ func processHook(ctx context.Context, data []byte) error {
 		return nil
 	}
 	for _, v := range events {
-		task, err := saveResourceLater.Task(v)
-		if err != nil {
-			return err
-		}
-		// set retry options for the task
-		// min/max back off of 5 mins means
-		// we will retry every 5 minutes
-		// 20 times
-		// after which point it will be abandoned
-		ropt := taskqueue.RetryOptions{
-			RetryLimit: 20,
-			MinBackoff: 5 * time.Minute,
-			MaxBackoff: 5 * time.Minute,
-		}
-		task.RetryOptions = &ropt
-		_, err = taskqueue.Add(ctx, task, "")
-		if err != nil {
-			return err
-		}
+		saveResourceLater(ctx, v)
+		/*
+			task, err := saveResourceLater.Task(v)
+			if err != nil {
+				return err
+			}
+			// set retry options for the task
+			// min/max back off of 5 mins means
+			// we will retry every 5 minutes
+			// 20 times
+			// after which point it will be abandoned
+			ropt := taskqueue.RetryOptions{
+				RetryLimit: 20,
+				MinBackoff: 5 * time.Minute,
+				MaxBackoff: 5 * time.Minute,
+			}
+			task.RetryOptions = &ropt
+			_, err = taskqueue.Add(ctx, task, "")
+			if err != nil {
+				return err
+			}*/
 	}
 	return nil
 }
 
-var processHookLater = delay.Func("processHookKey", processHook)
+//var processHookLater = delay.Func("processHookKey", processHook)
 
 //Resource is our basic model representing the REST resource that we save to datastore
 type Resource struct {
@@ -317,7 +317,7 @@ func saveResource(c context.Context, hook *hookStruct) (err error) {
 //MaxDataStoreByteSize is the largest size a blob in DS can have
 const MaxDataStoreByteSize = 1048576
 
-var saveResourceLater = delay.Func("saveResourceKey", saveResource)
+//var saveResourceLater = delay.Func("saveResourceKey", saveResource)
 
 func getURLPart(prefix, urlpath string, idx int) (r string) {
 	if len(urlpath) <= len(prefix) {
@@ -406,8 +406,6 @@ type PurgeInput struct {
 	Before string
 }
 
-var purgeBeforeLater = delay.Func("purgeBefore", purgeBefore)
-
 func purgeBefore(ctx context.Context, when time.Time, encCursor string) (err error) {
 	var (
 		stop      bool
@@ -457,8 +455,7 @@ func purgeBefore(ctx context.Context, when time.Time, encCursor string) (err err
 		return err
 	}
 	if !stop {
-		f := delay.Func("purge_step "+newCursor, purgeBefore)
-		f.Call(ctx, when, newCursor)
+		purgeStepLater(ctx, newCursor)
 	}
 	return nil
 }
@@ -467,7 +464,7 @@ func dailyView(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	ctx := r.Context()
 	t := time.Now().UTC().Add(-92 * 24 * time.Hour)
-	purgeBeforeLater.Call(ctx, t, "")
+	purgeBeforeLater(ctx, t)
 	w.Header().Add("content-type", "application/json")
 	fmt.Fprintf(w, "\"OK\"")
 }
