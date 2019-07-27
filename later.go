@@ -16,7 +16,7 @@ const (
 	queueID    = "default"
 )
 
-func createTask(ctx context.Context, handler_path string, payload []byte) (*tasks.Task, error) {
+func createTask(ctx context.Context, handlerPath string, payload []byte) (*tasks.Task, error) {
 	client, err := cloudtasks.NewClient(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("NewClient: %v", err)
@@ -30,7 +30,7 @@ func createTask(ctx context.Context, handler_path string, payload []byte) (*task
 			MessageType: &tasks.Task_AppEngineHttpRequest{
 				AppEngineHttpRequest: &tasks.AppEngineHttpRequest{
 					HttpMethod:  tasks.HttpMethod_POST,
-					RelativeUri: handler_path,
+					RelativeUri: handlerPath,
 					Body:        payload,
 				},
 			},

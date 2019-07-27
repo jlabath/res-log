@@ -9,15 +9,6 @@ import (
 	"time"
 )
 
-func getTasksHandler() http.Handler {
-	mux := http.NewServeMux()
-	mux.Handle("/process_hook", authDecor(http.HandlerFunc(processHookView)))
-	mux.Handle("/save_resource", authDecor(http.HandlerFunc(saveResourceView)))
-	mux.Handle("/purge_before", authDecor(http.HandlerFunc(purgeBeforeView)))
-	mux.Handle("/purge_step", authDecor(http.HandlerFunc(purgeStepView)))
-	return mux
-}
-
 //this decorator ensures we are called in decorator mode
 func authDecor(next http.Handler) http.Handler {
 	closure := func(w http.ResponseWriter, r *http.Request) {

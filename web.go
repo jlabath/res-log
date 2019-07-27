@@ -32,7 +32,10 @@ func getMux() *http.ServeMux {
 	mux.Handle("/l", http.NotFoundHandler())
 	mux.HandleFunc("/l/", resourcesView)
 	mux.HandleFunc("/cron/daily", dailyView)
-	mux.Handle("/task", getTasksHandler())
+	mux.Handle("/task/process_hook", authDecor(http.HandlerFunc(processHookView)))
+	mux.Handle("/task/save_resource", authDecor(http.HandlerFunc(saveResourceView)))
+	mux.Handle("/task/purge_before", authDecor(http.HandlerFunc(purgeBeforeView)))
+	mux.Handle("/task/purge_step", authDecor(http.HandlerFunc(purgeStepView)))
 	return mux
 }
 
