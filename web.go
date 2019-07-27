@@ -334,6 +334,17 @@ func getURLPart(prefix, urlpath string, idx int) (r string) {
 	return
 }
 
+func isPrivate(res string) bool {
+	private := []string{"documents", "refunds", "payments", "agents"}
+	r := strings.ToLower(strings.TrimSpace(res))
+	for _, v := range private {
+		if r == v {
+			return true
+		}
+	}
+	return false
+}
+
 //MaxRespSize is maximum response size we are willing to return
 const MaxRespSize = 30 * 1024 * 1024 //30MB arbitrary arrived at via 500 errors
 
@@ -354,6 +365,10 @@ func resourcesView(w http.ResponseWriter, r *http.Request) {
 	resid := getURLPart("/l/", r.URL.Path, 1)
 	if resid == "" || restype == "" {
 		http.Error(w, "missing resource type or ID", http.StatusBadRequest)
+		return
+	}
+	if isPrivate(restype) {
+		http.Error(w, "Not Authorized", http.StatusForbidden)
 		return
 	}
 	c := r.Context()

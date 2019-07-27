@@ -9,6 +9,7 @@ import (
 
 func main() {
 	http.Handle("/", getMux())
+	//http.HandleFunc("/", http.NotFound)
 
 	port := os.Getenv("PORT")
 	if port == "" {
