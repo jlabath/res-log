@@ -3,11 +3,13 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"compress/gzip"
 	"context"
+	"crypto/hmac"
 	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -53,26 +55,42 @@ func homeElm(w http.ResponseWriter, r *http.Request) {
 }
 
 func receive(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	err := processBody(ctx, r.Body)
+	err := processBody(r)
 	if err != nil {
 		log.Printf("failed to process request with error: %v", err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
 	}
 	w.Header().Add("X-Application-SHA256", AppKey256)
 	fmt.Fprintf(w, "OK")
 }
 
-func processBody(ctx context.Context, in io.Reader) error {
-	r, err := pack(NewCapReader(8*1024*1024, in)) //8MB arbitrary limit
+func processBody(r *http.Request) error {
+	mac := hmac.New(sha256.New, []byte(cfg.AppKey)) //used later to verify signature
+
+	rdr, err := pack(io.TeeReader(io.LimitReader(r.Body, 8*1024*1024), mac)) //8MB arbitrary limit
 	if err != nil {
 		return err
 	}
-	data, err := ioutil.ReadAll(r)
+	data, err := ioutil.ReadAll(rdr)
 	if err != nil {
 		return err
 	}
-	//ctx.Infof("processed data long %d", len(data))
-	processHookLater(ctx, data)
+
+	//now verify the HMAC
+	//decode message mac
+	messageMAC, err := hex.DecodeString(r.Header.Get("X-Gapi-Signature"))
+	if err != nil {
+		return err
+	}
+
+	expectedMAC := mac.Sum(nil)
+	if !hmac.Equal(messageMAC, expectedMAC) {
+		return fmt.Errorf("Unexpected X-Gapi-Signature received: %s", r.Header.Get("X-Gapi-Signature"))
+	}
+
+	//log.Printf("processed data long %d", len(data))
+	processHookLater(r.Context(), data)
 	return nil
 }
 
@@ -127,8 +145,6 @@ func processHook(ctx context.Context, in io.Reader) error {
 	return nil
 }
 
-//var processHookLater = delay.Func("processHookKey", processHook)
-
 //Resource is our basic model representing the REST resource that we save to datastore
 type Resource struct {
 	URI       string `datastore:"Uri"`
@@ -138,6 +154,15 @@ type Resource struct {
 	Sha1      string `datastore:",noindex"`
 }
 
+//JSONResource is the same as Resource but more suitable for serializing
+type JSONResource struct {
+	FetchDate string          `json:"fetchdate"`
+	HookDate  string          `json:"hookdate"`
+	Sha1      string          `json:"sha1"`
+	Data      json.RawMessage `json:"resource"`
+}
+
+//jsLayout is for formatting dates
 const jsLayout = "2006-01-02T15:04:05Z"
 
 //CountingWriter keeps track of the number of bytes written
@@ -165,58 +190,29 @@ func NewCountingWriter(out io.Writer) *CountingWriter {
 	}
 }
 
-//ErrCapReached is returned by CapReader if the limit (cap) was reached
-var ErrCapReached = errors.New("data read cap was reached")
-
-//CapReader keeps track of the number of bytes read
-type CapReader struct {
-	numRead int
-	cap     int
-	r       io.Reader
-}
-
-//Read implements io.Reader
-func (cr *CapReader) Read(p []byte) (int, error) {
-	num, err := cr.r.Read(p)
-	cr.numRead = cr.numRead + num
-	if cr.numRead > cr.cap {
-		return num, ErrCapReached
-	}
-	return num, err
-}
-
-//NewCapReader returns new instance of cap reader
-func NewCapReader(limit int, in io.Reader) *CapReader {
-	return &CapReader{
-		cap: limit,
-		r:   in,
-	}
-}
-
 //WriteAsJSON writes this resource to Writer as JSON
 func (r *Resource) WriteAsJSON(out io.Writer) (int, error) {
-	buf := NewCountingWriter(out)
-	buf.WriteString(`{"fetchdate":`)
-	data, err := json.Marshal(r.FetchDate.Format(jsLayout))
-	if err != nil {
-		return 0, err
+	jsr := JSONResource{
+		FetchDate: r.FetchDate.Format(jsLayout),
+		HookDate:  r.HookDate,
+		Sha1:      r.Sha1,
 	}
-	buf.Write(data)
-	buf.WriteString(`,"hookdate":"`)
-	buf.WriteString(r.HookDate)
-	buf.WriteString(`","sha1":"`)
-	buf.WriteString(r.Sha1)
-	buf.WriteString(`","resource":`)
 	if len(r.Data) > 0 {
-		_, err := unpackTo(buf, bytes.NewBuffer(r.Data))
+		dr, err := gzip.NewReader(bytes.NewBuffer(r.Data))
 		if err != nil {
 			return 0, err
 		}
-	} else {
-		buf.WriteString("null")
+		jsr.Data, err = ioutil.ReadAll(dr)
+		if err != nil {
+			return 0, err
+		}
+		if err := dr.Close(); err != nil {
+			return 0, err
+		}
 	}
-	buf.WriteString("}")
-	return buf.Written, nil
+	outbuf := NewCountingWriter(out)
+	err := json.NewEncoder(outbuf).Encode(&jsr)
+	return outbuf.Written, err
 }
 
 //MarshalJSON implements the json.Marshaller
@@ -228,7 +224,7 @@ func (r *Resource) MarshalJSON() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func saveResource(c context.Context, hook *hookStruct) (err error) {
+func saveResource(c context.Context, hook *hookStruct) error {
 	var uriBuf bytes.Buffer
 	uriBuf.WriteString(hook.Resource)
 	uriBuf.WriteString("/")
@@ -247,53 +243,49 @@ func saveResource(c context.Context, hook *hookStruct) (err error) {
 	req, err := http.NewRequest("GET", hook.Data.Href, nil)
 	if err != nil {
 		log.Printf("failed to build GET request for: %s", hook.Data.Href)
-		return
+		return err
 	}
 	req.Header.Add("Content-Type", "application/json")
 	req.Header.Add("X-Application-Key", cfg.AppKey)
 	resp, err := client.Do(req)
 	if err != nil {
 		log.Printf("failed to fetch: %s", hook.Data.Href)
-		return
+		return err
 	}
 	defer resp.Body.Close()
 
 	//first reader json verif
 	origBuf := new(bytes.Buffer)
-	firstR := io.TeeReader(NewCapReader(8*1024*1024, resp.Body), origBuf) //arbitrary 8MB limit
+	firstR := io.TeeReader(io.LimitReader(resp.Body, 8*1024*1024), origBuf) //arbitrary 8MB limit
 	//before packing calc the sha1 - second reader
 	shaw := sha1.New()
 	shar := io.TeeReader(firstR, shaw)
 	//pack the response returns a final reader
 	pr, err := pack(shar)
 	if err != nil {
-		if err == ErrCapReached {
-			log.Printf("cap reached when reading response, abandon: %s", hook.Data.Href)
-			err = nil
-			return
-		}
 		log.Printf("failed to pack: %s", hook.Data.Href)
-		return
+		return err
 	}
 	pdata, err := ioutil.ReadAll(pr)
 	if err != nil {
 		log.Printf("failed to read packed: %s", hook.Data.Href)
-		return
+		return err
 	}
 	if len(pdata) > MaxDataStoreByteSize {
 		log.Printf(
-			"compressed resource is too large %d abandond: %s",
+			"compressed resource is too large %d abandon: %s",
 			len(pdata),
 			hook.Data.Href)
-		err = nil
-		return
+		return nil
 	}
 	//now verify that this is ok json
 	var someJSON map[string]interface{}
 	dec := json.NewDecoder(origBuf)
 	if derr := dec.Decode(&someJSON); derr != nil {
-		log.Printf("failed to properly decode json")
-		return derr
+		log.Printf(
+			"failed to properly decode json so abandon %s: %v",
+			hook.Data.Href, derr)
+		return nil
 	}
 	//create and save
 	r := Resource{
@@ -306,21 +298,19 @@ func saveResource(c context.Context, hook *hookStruct) (err error) {
 	dsClient, err := datastore.NewClient(c, projectID)
 	if err != nil {
 		log.Printf("unable to create Datastore client %v", err)
-		return
+		return err
 	}
 
 	_, err = dsClient.Put(c, datastore.IncompleteKey("resource", nil), &r)
 	if err != nil {
 		log.Printf("unable to store resource %#v", r)
-		return
+		return err
 	}
-	return
+	return nil
 }
 
 //MaxDataStoreByteSize is the largest size a blob in DS can have
 const MaxDataStoreByteSize = 1048576
-
-//var saveResourceLater = delay.Func("saveResourceKey", saveResource)
 
 func getURLPart(prefix, urlpath string, idx int) (r string) {
 	if len(urlpath) <= len(prefix) {
@@ -383,7 +373,6 @@ func resourcesView(w http.ResponseWriter, r *http.Request) {
 	)
 	dsClient, err := datastore.NewClient(c, projectID)
 	if err != nil {
-		// TODO: Handle error.
 		log.Printf("Failed to create a datastore client %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
