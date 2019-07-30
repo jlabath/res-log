@@ -1,6 +1,6 @@
-module HistoryView exposing (..)
+module HistoryView exposing (Log, Model, Msg(..), add, empty, renderModel, view)
 
-import Html exposing (Html, text, div, ul, li)
+import Html exposing (Html, div, li, text, ul)
 import Html.Attributes exposing (id)
 import Html.Events exposing (on)
 import Json.Decode as Decode
@@ -32,7 +32,7 @@ add m log =
         newrecords =
             List.filter (\x -> x /= m) log.records
     in
-        { log | records = m :: newrecords }
+    { log | records = m :: newrecords }
 
 
 view : Log -> Html Msg

@@ -1,7 +1,7 @@
-module Generic exposing (Value(..), toJson, fromJson, decoder)
+module Generic exposing (Value(..), decoder, fromJson, toJson)
 
-import Json.Encode as Encode
 import Json.Decode as Decode
+import Json.Encode as Encode
 import List
 import OrderedDict as Dict
 
@@ -45,7 +45,7 @@ toJson value =
                         |> List.reverse
                         |> List.map convert
             in
-                Encode.object pairs
+            Encode.object pairs
 
         Nil ->
             Encode.null
@@ -135,16 +135,16 @@ nilDecoder =
 
 {-| builds the lst decoder
 
->> is function composition
-so the `andThen` will pass it the value ()
+> > is function composition
+> > so the `andThen` will pass it the value ()
 
 (buildDecoder >> Decode.list >> Decode.map Lst)
 
 so what is happening is this
 
-   1. buildDecoder () -> Decoder Value
-   2. Decode.list #1 -> Decoder (List Value)
-   3. Decode.map Lst #2 -> Decoder Value
+1.  buildDecoder () -> Decoder Value
+2.  Decode.list #1 -> Decoder (List Value)
+3.  Decode.map Lst #2 -> Decoder Value
 
 -}
 buildLstDecoder : () -> Decode.Decoder Value

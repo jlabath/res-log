@@ -1,20 +1,20 @@
-module Main exposing (..)
+module Main exposing (Model, Msg(..), Resource, decodeData, getData, init, lstGet, main, onChange, onKeyPress, renderOption, renderResLst, resourceLabel, resourceList, subscriptions, toSelectTuples, update, updateGetAction, updateNoOp, view)
 
 import Entry
 import HistoryView as Hv
-import Html exposing (Html, text, select, div, label, option, input)
-import Html.App as App
-import Html.Attributes exposing (for, id, value, type', style, selected)
-import Html.Events exposing (onClick, onInput, on, targetValue, keyCode)
+import Html exposing (Html, div, input, label, option, select, text)
+import Browser exposing (sandbox)
+import Html.Attributes exposing (for, id, selected, style, type_, value)
+import Html.Events exposing (keyCode, on, onClick, onInput, targetValue)
 import Http
 import Json.Decode as Json
 import String
 import Task
 
 
-main : Program Never
+main : Program () Model Msg
 main =
-    App.program
+    Browser.sandbox
         { init =
             List.head resourceList
                 |> Maybe.withDefault ( "departures", "" )
@@ -85,14 +85,14 @@ update msg model =
                 newmodel =
                     { model | resourceType = newType }
             in
-                ( newmodel, Cmd.none )
+            ( newmodel, Cmd.none )
 
         FetchFail error ->
             let
                 err =
                     toString error
             in
-                ( { model | error = err }, Cmd.none )
+            ( { model | error = err }, Cmd.none )
 
         FetchSucceeded entries ->
             ( { model
@@ -121,12 +121,13 @@ update msg model =
                 idx =
                     strIndex |> String.toInt |> Result.withDefault 0
             in
-                ( { model | currentModel = lstGet idx model.entries }, Cmd.none )
+            ( { model | currentModel = lstGet idx model.entries }, Cmd.none )
 
         KeyPress key ->
             if key == 13 then
                 {- 13 is enter / carriage return -}
                 updateGetAction model
+
             else
                 updateNoOp model
 
@@ -154,7 +155,7 @@ updateGetAction model =
         newmodel =
             { model | error = "", status = "Downloading, please wait ..." }
     in
-        ( newmodel, getData newmodel.resourceType newmodel.resourceId )
+    ( newmodel, getData newmodel.resourceType newmodel.resourceId )
 
 
 
@@ -187,23 +188,24 @@ view model =
         status =
             if model.error == "" then
                 text model.status
+
             else
-                div [ style [ ( "color", "red" ) ] ] [ text model.error ]
+                div [ style "color" "red" ] [ text model.error ]
     in
-        div [ id "resapp" ]
-            [ div [ id "resform" ]
-                [ label [ for "restype" ] [ text "Resource: " ]
-                , resourceList |> List.map (renderOption model.resourceType) |> select [ id "restype", onChange ChangeType ]
-                , label [ for "resid" ] [ text "ID: " ]
-                , input [ type' "text", id "resid", value model.resourceId, onKeyPress KeyPress, onInput Entry ] []
-                , input [ type' "button", value "Get", onClick GetAction ] []
-                , label [ for "reslst" ] [ text "Results: " ]
-                , select [ id "reslst", onChange ChangeVersion ] <| renderResLst model.entries
-                ]
-            , div [ id "status" ] [ status ]
-            , div [ id "resview" ] resview
-            , App.map HistoryMsg (Hv.view model.log)
+    div [ id "resapp" ]
+        [ div [ id "resform" ]
+            [ label [ for "restype" ] [ text "Resource: " ]
+            , resourceList |> List.map (renderOption model.resourceType) |> select [ id "restype", onChange ChangeType ]
+            , label [ for "resid" ] [ text "ID: " ]
+            , input [ type_ "text", id "resid", value model.resourceId, onKeyPress KeyPress, onInput Entry ] []
+            , input [ type_ "button", value "Get", onClick GetAction ] []
+            , label [ for "reslst" ] [ text "Results: " ]
+            , select [ id "reslst", onChange ChangeVersion ] <| renderResLst model.entries
             ]
+        , div [ id "status" ] [ status ]
+        , div [ id "resview" ] resview
+        , App.map HistoryMsg (Hv.view model.log)
+        ]
 
 
 renderResLst : List Entry.Model -> List (Html a)
@@ -217,10 +219,11 @@ renderOption default ( val, label ) =
         optval =
             if val == default then
                 [ value val, selected True ]
+
             else
                 [ value val ]
     in
-        option optval [ text label ]
+    option optval [ text label ]
 
 
 
@@ -264,7 +267,7 @@ resourceList =
 resourceLabel : String -> String
 resourceLabel rType =
     resourceList
-        |> List.filter (\x -> fst (x) == rType)
+        |> List.filter (\x -> fst x == rType)
         |> List.head
         |> Maybe.withDefault ( "", "" )
         |> snd
@@ -276,7 +279,7 @@ getData resType resId =
         url =
             "/l/" ++ resType ++ "/" ++ resId
     in
-        Task.perform FetchFail FetchSucceeded (Http.get decodeData url)
+    Task.perform FetchFail FetchSucceeded (Http.get decodeData url)
 
 
 decodeData : Json.Decoder (List Entry.Model)
@@ -295,11 +298,10 @@ toSelectTuples acc xs =
                 newacc =
                     ( List.length acc |> toString, hd.fetchdate ) :: acc
             in
-                toSelectTuples newacc tl
+            toSelectTuples newacc tl
 
 
-{-|
-helper func to retrieve item from list using index
+{-| helper func to retrieve item from list using index
 -}
 lstGet : Int -> List a -> Maybe a
 lstGet index list =

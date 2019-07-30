@@ -1,12 +1,12 @@
-module Entry exposing (..)
+module Entry exposing (Model, Msg(..), decode, render, renderAttribute, renderDct, renderItem, renderLst, renderValue, span)
 
-import Json.Decode as Decode
-import Json.Encode as Encode
-import Json.Decode.Pipeline as Pipeline
 import Generic
 import Html exposing (Html)
-import OrderedDict as Od
 import Html.Attributes as Attributes
+import Json.Decode as Decode
+import Json.Decode.Pipeline as Pipeline
+import Json.Encode as Encode
+import OrderedDict as Od
 
 
 type alias Model =
@@ -17,9 +17,8 @@ type alias Model =
     }
 
 
-{-|
-   pipeline decoder for our Model
-   https://www.brianthicks.com/post/2016/08/22/decoding-large-json-objects-a-summary/
+{-| pipeline decoder for our Model
+<https://www.brianthicks.com/post/2016/08/22/decoding-large-json-objects-a-summary/>
 -}
 decode : Decode.Decoder Model
 decode =
@@ -43,14 +42,14 @@ render model =
         text =
             Html.text
     in
-        Html.div []
-            [ Html.ul []
-                [ li [] [ text <| "SHA1: " ++ model.sha1 ]
-                , li [] [ text <| "Fetch Date: " ++ model.fetchdate ]
-                , li [] [ text <| "Hook Date: " ++ model.hookdate ]
-                ]
-            , Html.div [ Attributes.class "jsview" ] [ renderValue model.resource ]
+    Html.div []
+        [ Html.ul []
+            [ li [] [ text <| "SHA1: " ++ model.sha1 ]
+            , li [] [ text <| "Fetch Date: " ++ model.fetchdate ]
+            , li [] [ text <| "Hook Date: " ++ model.hookdate ]
             ]
+        , Html.div [ Attributes.class "jsview" ] [ renderValue model.resource ]
+        ]
 
 
 renderValue : Generic.Value -> Html.Html Msg
@@ -69,6 +68,7 @@ renderValue value =
                 Html.text <|
                     if bln then
                         "true"
+
                     else
                         "false"
 
@@ -97,7 +97,7 @@ renderAttribute ( key, val ) =
                         Generic.toJson <|
                             Generic.Txt key
     in
-        Html.li [] [ jsattr key, Html.text ": ", renderValue val ]
+    Html.li [] [ jsattr key, Html.text ": ", renderValue val ]
 
 
 renderItem : Generic.Value -> Html.Html Msg
@@ -107,7 +107,7 @@ renderItem val =
 
 renderLst : List Generic.Value -> Html.Html Msg
 renderLst list =
-    Html.ol [ ] <|
+    Html.ol [] <|
         List.map renderItem list
 
 
