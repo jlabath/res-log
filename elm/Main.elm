@@ -1,9 +1,11 @@
-module Main exposing (Model, Msg(..), Resource, decodeData, getData, init, lstGet, main, onChange, onKeyPress, renderOption, renderResLst, resourceLabel, resourceList, subscriptions, toSelectTuples, update, updateGetAction, updateNoOp, view)
+module Main exposing (main)
 
+--not super certain why elm-format puts the above line in (code compiles without it)
+
+import Browser
 import Entry
 import HistoryView as Hv
 import Html exposing (Html, div, input, label, option, select, text)
-import Browser exposing (sandbox)
 import Html.Attributes exposing (for, id, selected, style, type_, value)
 import Html.Events exposing (keyCode, on, onClick, onInput, targetValue)
 import Http
@@ -14,11 +16,11 @@ import Task
 
 main : Program () Model Msg
 main =
-    Browser.sandbox
+    Browser.element
         { init =
             List.head resourceList
                 |> Maybe.withDefault ( "departures", "" )
-                |> fst
+                |> Tuple.first
                 |> init
         , view = view
         , update = update
@@ -41,8 +43,13 @@ type alias Model =
     }
 
 
-init : String -> ( Model, Cmd Msg )
-init initType =
+{-|
+
+  - the () is the type for flags (we pass no flags to our program)
+
+-}
+init : String -> () -> ( Model, Cmd Msg )
+init initType _ =
     ( { resourceType = initType
       , resourceId = ""
       , entries = []
@@ -62,10 +69,10 @@ init initType =
 type Msg
     = Entry String
     | GetAction
+    | GetRecentAction
     | ChangeType String
     | ChangeVersion String
-    | FetchFail Http.Error
-    | FetchSucceeded (List Entry.Model)
+    | FetchOfData (Result Http.Error (List Entry.Model))
     | KeyPress Int
     | HistoryMsg Hv.Msg
     | EntryMsg Entry.Msg
@@ -80,6 +87,13 @@ update msg model =
         GetAction ->
             updateGetAction model
 
+        GetRecentAction ->
+            let
+                newmodel =
+                    { model | error = "", status = "Downloading, please wait ..." }
+            in
+            ( newmodel, getRecentData newmodel.resourceType )
+
         ChangeType newType ->
             let
                 newmodel =
@@ -87,39 +101,10 @@ update msg model =
             in
             ( newmodel, Cmd.none )
 
-        FetchFail error ->
-            let
-                err =
-                    toString error
-            in
-            ( { model | error = err }, Cmd.none )
-
-        FetchSucceeded entries ->
-            ( { model
-                | entries = entries
-                , currentModel = lstGet 0 entries
-                , error = ""
-                , status = (List.length entries |> toString) ++ " results found for " ++ model.resourceType ++ "/" ++ model.resourceId
-                , log =
-                    case entries of
-                        [] ->
-                            model.log
-
-                        _ ->
-                            Hv.add
-                                { resId = model.resourceId
-                                , resType = model.resourceType
-                                , resTypeLabel = resourceLabel model.resourceType
-                                }
-                                model.log
-              }
-            , Cmd.none
-            )
-
         ChangeVersion strIndex ->
             let
                 idx =
-                    strIndex |> String.toInt |> Result.withDefault 0
+                    strIndex |> String.toInt |> Maybe.withDefault 0
             in
             ( { model | currentModel = lstGet idx model.entries }, Cmd.none )
 
@@ -142,6 +127,37 @@ update msg model =
 
         EntryMsg emsg ->
             updateNoOp model
+
+        FetchOfData res ->
+            case res of
+                Ok entries ->
+                    ( { model
+                        | entries = entries
+                        , currentModel = lstGet 0 entries
+                        , error = ""
+                        , status = (List.length entries |> String.fromInt) ++ " results found for " ++ model.resourceType ++ "/" ++ model.resourceId
+                        , log =
+                            case entries of
+                                [] ->
+                                    model.log
+
+                                _ ->
+                                    Hv.add
+                                        { resId = model.resourceId
+                                        , resType = model.resourceType
+                                        , resTypeLabel = resourceLabel model.resourceType
+                                        }
+                                        model.log
+                      }
+                    , Cmd.none
+                    )
+
+                Err error ->
+                    let
+                        err =
+                            errToString error
+                    in
+                    ( { model | error = err }, Cmd.none )
 
 
 updateNoOp : Model -> ( Model, Cmd Msg )
@@ -183,7 +199,7 @@ view model =
                     []
 
                 Just entry ->
-                    [ App.map EntryMsg <| Entry.render entry ]
+                    [ Html.map EntryMsg <| Entry.render entry ]
 
         status =
             if model.error == "" then
@@ -198,13 +214,15 @@ view model =
             , resourceList |> List.map (renderOption model.resourceType) |> select [ id "restype", onChange ChangeType ]
             , label [ for "resid" ] [ text "ID: " ]
             , input [ type_ "text", id "resid", value model.resourceId, onKeyPress KeyPress, onInput Entry ] []
-            , input [ type_ "button", value "Get", onClick GetAction ] []
+            , input [ type_ "button", value "Get ID", onClick GetAction ] []
+            , label [ for "recentbtn" ] [ text "Or Just" ]
+            , input [ type_ "button", id "recentbtn", value "Get Recent", onClick GetRecentAction ] []
             , label [ for "reslst" ] [ text "Results: " ]
             , select [ id "reslst", onChange ChangeVersion ] <| renderResLst model.entries
             ]
         , div [ id "status" ] [ status ]
         , div [ id "resview" ] resview
-        , App.map HistoryMsg (Hv.view model.log)
+        , Html.map HistoryMsg (Hv.view model.log)
         ]
 
 
@@ -267,10 +285,10 @@ resourceList =
 resourceLabel : String -> String
 resourceLabel rType =
     resourceList
-        |> List.filter (\x -> fst x == rType)
+        |> List.filter (\x -> Tuple.first x == rType)
         |> List.head
         |> Maybe.withDefault ( "", "" )
-        |> snd
+        |> Tuple.second
 
 
 getData : String -> String -> Cmd Msg
@@ -279,7 +297,22 @@ getData resType resId =
         url =
             "/l/" ++ resType ++ "/" ++ resId
     in
-    Task.perform FetchFail FetchSucceeded (Http.get decodeData url)
+    Http.get
+        { expect = Http.expectJson FetchOfData decodeData
+        , url = url
+        }
+
+
+getRecentData : String -> Cmd Msg
+getRecentData resType =
+    let
+        url =
+            "/lr/" ++ resType
+    in
+    Http.get
+        { expect = Http.expectJson FetchOfData decodeData
+        , url = url
+        }
 
 
 decodeData : Json.Decoder (List Entry.Model)
@@ -296,7 +329,7 @@ toSelectTuples acc xs =
         hd :: tl ->
             let
                 newacc =
-                    ( List.length acc |> toString, hd.fetchdate ) :: acc
+                    ( List.length acc |> String.fromInt, hd.fetchdate ) :: acc
             in
             toSelectTuples newacc tl
 
@@ -306,3 +339,24 @@ toSelectTuples acc xs =
 lstGet : Int -> List a -> Maybe a
 lstGet index list =
     list |> List.drop index |> List.head
+
+
+{-| helper to format http errors
+-}
+errToString : Http.Error -> String
+errToString err =
+    case err of
+        Http.Timeout ->
+            "Request Timeout"
+
+        Http.NetworkError ->
+            "Network Error"
+
+        Http.BadStatus status ->
+            "Unexpected HTTP status " ++ String.fromInt status
+
+        Http.BadUrl url ->
+            "Bad URL " ++ url
+
+        Http.BadBody errmsg ->
+            "Bad Body error: " ++ errmsg

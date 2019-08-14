@@ -1,4 +1,4 @@
-module Entry exposing (Model, Msg(..), decode, render, renderAttribute, renderDct, renderItem, renderLst, renderValue, span)
+module Entry exposing (Model, Msg, decode, render)
 
 import Generic
 import Html exposing (Html)
@@ -9,11 +9,13 @@ import Json.Encode as Encode
 import OrderedDict as Od
 
 
+{-| Model representing a single Entry in reslog
+-}
 type alias Model =
     { fetchdate : String
     , hookdate : String
-    , resource : Generic.Value
     , sha1 : String
+    , resource : Generic.Value
     }
 
 
@@ -22,17 +24,19 @@ type alias Model =
 -}
 decode : Decode.Decoder Model
 decode =
-    Pipeline.decode Model
+    Decode.succeed Model
         |> Pipeline.required "fetchdate" Decode.string
         |> Pipeline.required "hookdate" Decode.string
-        |> Pipeline.required "resource" Generic.decoder
         |> Pipeline.required "sha1" Decode.string
+        |> Pipeline.required "resource" Generic.fromJson
 
 
 type Msg
     = NoOp
 
 
+{-| render our Model (which represents one Entry) as html
+-}
 render : Model -> Html.Html Msg
 render model =
     let
@@ -56,7 +60,7 @@ renderValue : Generic.Value -> Html.Html Msg
 renderValue value =
     case value of
         Generic.Num num ->
-            toString num
+            String.fromFloat num
                 |> Html.text
                 |> span "jsnum"
 
@@ -84,18 +88,18 @@ renderValue value =
 
 renderDct : Od.OrderedDict String Generic.Value -> Html.Html Msg
 renderDct dict =
-    Html.ul [] <| List.map renderAttribute <| List.reverse <| Od.toList dict
+    Html.ul [] <| List.map renderAttribute <| List.reverse <| Generic.dictToPairs dict
 
 
 renderAttribute : ( String, Generic.Value ) -> Html.Html Msg
 renderAttribute ( key, val ) =
     let
-        jsattr key =
+        jsattr k =
             span "jsattr" <|
                 Html.text <|
                     Encode.encode 0 <|
                         Generic.toJson <|
-                            Generic.Txt key
+                            Generic.Txt k
     in
     Html.li [] [ jsattr key, Html.text ": ", renderValue val ]
 
