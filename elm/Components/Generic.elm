@@ -1,4 +1,4 @@
-module Generic exposing (Value(..), dictToPairs, fromJson, toJson)
+module Generic exposing (Value(..), dictToPairs, field, fromJson, toJson, toString)
 
 import Dict
 import Json.Decode as Decode
@@ -167,3 +167,23 @@ dictToPairs dict =
             )
     in
     List.map func dict.order
+
+
+field : String -> Value -> Maybe Value
+field key obj =
+    case obj of
+        Dct dict ->
+            Dict.get key dict.dict
+
+        _ ->
+            Nothing
+
+
+toString : Value -> Maybe String
+toString v =
+    case v of
+        Txt s ->
+            Just s
+
+        _ ->
+            Nothing

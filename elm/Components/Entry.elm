@@ -88,7 +88,7 @@ renderValue value =
 
 renderDct : Od.OrderedDict String Generic.Value -> Html.Html Msg
 renderDct dict =
-    Html.ul [] <| List.map renderAttribute <| List.reverse <| Generic.dictToPairs dict
+    Html.ul [] <| List.map renderAttribute <| Generic.dictToPairs dict
 
 
 renderAttribute : ( String, Generic.Value ) -> Html.Html Msg

@@ -4,6 +4,7 @@ module Main exposing (main)
 
 import Browser
 import Entry
+import Generic
 import HistoryView as Hv
 import Html exposing (Html, div, input, label, option, select, text)
 import Html.Attributes exposing (for, id, selected, style, type_, value)
@@ -90,7 +91,7 @@ update msg model =
         GetRecentAction ->
             let
                 newmodel =
-                    { model | error = "", status = "Downloading, please wait ..." }
+                    { model | resourceId = "", error = "", status = "Downloading, please wait ..." }
             in
             ( newmodel, getRecentData newmodel.resourceType )
 
@@ -131,8 +132,13 @@ update msg model =
         FetchOfData res ->
             case res of
                 Ok entries ->
+                    let
+                        resId =
+                            Maybe.withDefault "" <| firstResId entries
+                    in
                     ( { model
                         | entries = entries
+                        , resourceId = resId
                         , currentModel = lstGet 0 entries
                         , error = ""
                         , status = (List.length entries |> String.fromInt) ++ " results found for " ++ model.resourceType ++ "/" ++ model.resourceId
@@ -143,7 +149,7 @@ update msg model =
 
                                 _ ->
                                     Hv.add
-                                        { resId = model.resourceId
+                                        { resId = resId
                                         , resType = model.resourceType
                                         , resTypeLabel = resourceLabel model.resourceType
                                         }
@@ -293,22 +299,18 @@ resourceLabel rType =
 
 getData : String -> String -> Cmd Msg
 getData resType resId =
-    let
-        url =
-            "/l/" ++ resType ++ "/" ++ resId
-    in
-    Http.get
-        { expect = Http.expectJson FetchOfData decodeData
-        , url = url
-        }
+    fetchData <|
+        ("/l/" ++ resType ++ "/" ++ resId)
 
 
 getRecentData : String -> Cmd Msg
 getRecentData resType =
-    let
-        url =
-            "/lr/" ++ resType
-    in
+    fetchData <|
+        ("/l/" ++ resType)
+
+
+fetchData : String -> Cmd Msg
+fetchData url =
     Http.get
         { expect = Http.expectJson FetchOfData decodeData
         , url = url
@@ -360,3 +362,20 @@ errToString err =
 
         Http.BadBody errmsg ->
             "Bad Body error: " ++ errmsg
+
+
+{-| retrieve resource id from entries
+-}
+firstResId : List Entry.Model -> Maybe String
+firstResId entries =
+    case List.head entries of
+        Nothing ->
+            Nothing
+
+        Just entry ->
+            case Generic.field "id" entry.resource of
+                Just v ->
+                    Generic.toString v
+
+                Nothing ->
+                    Nothing

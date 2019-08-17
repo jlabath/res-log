@@ -519,11 +519,11 @@ function _Debug_crash_UNUSED(identifier, fact1, fact2, fact3, fact4)
 
 function _Debug_regionToString(region)
 {
-	if (region.Y.L === region.ac.L)
+	if (region.Y.L === region.ad.L)
 	{
 		return 'on line ' + region.Y.L;
 	}
-	return 'on lines ' + region.Y.L + ' through ' + region.ac.L;
+	return 'on lines ' + region.Y.L + ' through ' + region.ad.L;
 }
 
 
@@ -1857,9 +1857,9 @@ var _Platform_worker = F4(function(impl, flagDecoder, debugMetadata, args)
 	return _Platform_initialize(
 		flagDecoder,
 		args,
-		impl.aR,
-		impl.a2,
-		impl.a0,
+		impl.aQ,
+		impl.a1,
+		impl.a$,
 		function() { return function() {} }
 	);
 });
@@ -2321,25 +2321,25 @@ var _Http_toTask = F3(function(router, toTask, request)
 	return _Scheduler_binding(function(callback)
 	{
 		function done(response) {
-			callback(toTask(request.ae.a(response)));
+			callback(toTask(request.aL.a(response)));
 		}
 
 		var xhr = new XMLHttpRequest();
 		xhr.addEventListener('error', function() { done(elm$http$Http$NetworkError_); });
 		xhr.addEventListener('timeout', function() { done(elm$http$Http$Timeout_); });
-		xhr.addEventListener('load', function() { done(_Http_toResponse(request.ae.b, xhr)); });
+		xhr.addEventListener('load', function() { done(_Http_toResponse(request.aL.b, xhr)); });
 		elm$core$Maybe$isJust(request.j) && _Http_track(router, xhr, request.j.a);
 
 		try {
-			xhr.open(request.h, request.aF, true);
+			xhr.open(request.h, request.a2, true);
 		} catch (e) {
-			return done(elm$http$Http$BadUrl_(request.aF));
+			return done(elm$http$Http$BadUrl_(request.a2));
 		}
 
 		_Http_configureRequest(xhr, request);
 
-		request.aJ.a && xhr.setRequestHeader('Content-Type', request.aJ.a);
-		xhr.send(request.aJ.b);
+		request.aI.a && xhr.setRequestHeader('Content-Type', request.aI.a);
+		xhr.send(request.aI.b);
 
 		return function() { xhr.c = true; xhr.abort(); };
 	});
@@ -2355,7 +2355,7 @@ function _Http_configureRequest(xhr, request)
 		xhr.setRequestHeader(headers.a.a, headers.a.b);
 	}
 	xhr.timeout = request.i.a || 0;
-	xhr.responseType = request.ae.d;
+	xhr.responseType = request.aL.d;
 	xhr.withCredentials = request.z;
 }
 
@@ -2377,9 +2377,9 @@ function _Http_toResponse(toBody, xhr)
 function _Http_toMetadata(xhr)
 {
 	return {
-		aF: xhr.responseURL,
+		a2: xhr.responseURL,
 		aC: xhr.status,
-		a$: xhr.statusText,
+		a_: xhr.statusText,
 		e: _Http_parseHeaders(xhr.getAllResponseHeaders())
 	};
 }
@@ -2475,14 +2475,14 @@ function _Http_track(router, xhr, tracker)
 	xhr.upload.addEventListener('progress', function(event) {
 		if (xhr.c) { return; }
 		_Scheduler_rawSpawn(A2(elm$core$Platform$sendToSelf, router, _Utils_Tuple2(tracker, elm$http$Http$Sending({
-			a_: event.loaded,
+			aZ: event.loaded,
 			X: event.total
 		}))));
 	});
 	xhr.addEventListener('progress', function(event) {
 		if (xhr.c) { return; }
 		_Scheduler_rawSpawn(A2(elm$core$Platform$sendToSelf, router, _Utils_Tuple2(tracker, elm$http$Http$Receiving({
-			aX: event.loaded,
+			aW: event.loaded,
 			X: event.lengthComputable ? elm$core$Maybe$Just(event.total) : elm$core$Maybe$Nothing
 		}))));
 	});
@@ -2834,7 +2834,7 @@ var _VirtualDom_mapEventTuple = F2(function(func, tuple)
 var _VirtualDom_mapEventRecord = F2(function(func, record)
 {
 	return {
-		q: func(record.q),
+		r: func(record.r),
 		Z: record.Z,
 		W: record.W
 	}
@@ -3104,7 +3104,7 @@ function _VirtualDom_makeCallback(eventNode, initialHandler)
 		// 3 = Custom
 
 		var value = result.a;
-		var message = !tag ? value : tag < 3 ? value.a : value.q;
+		var message = !tag ? value : tag < 3 ? value.a : value.r;
 		var stopPropagation = tag == 1 ? value.b : tag == 3 && value.Z;
 		var currentEventNode = (
 			stopPropagation && event.stopPropagation(),
@@ -4058,9 +4058,9 @@ var _Browser_element = _Debugger_element || F4(function(impl, flagDecoder, debug
 	return _Platform_initialize(
 		flagDecoder,
 		args,
-		impl.aR,
-		impl.a2,
-		impl.a0,
+		impl.aQ,
+		impl.a1,
+		impl.a$,
 		function(sendToApp, initialModel) {
 			var view = impl.a3;
 			/**/
@@ -4094,9 +4094,9 @@ var _Browser_document = _Debugger_document || F4(function(impl, flagDecoder, deb
 	return _Platform_initialize(
 		flagDecoder,
 		args,
-		impl.aR,
-		impl.a2,
-		impl.a0,
+		impl.aQ,
+		impl.a1,
+		impl.a$,
 		function(sendToApp, initialModel) {
 			var divertHrefToApp = impl.M && impl.M(sendToApp)
 			var view = impl.a3;
@@ -4107,12 +4107,12 @@ var _Browser_document = _Debugger_document || F4(function(impl, flagDecoder, deb
 			{
 				_VirtualDom_divertHrefToApp = divertHrefToApp;
 				var doc = view(model);
-				var nextNode = _VirtualDom_node('body')(_List_Nil)(doc.aJ);
+				var nextNode = _VirtualDom_node('body')(_List_Nil)(doc.aI);
 				var patches = _VirtualDom_diff(currNode, nextNode);
 				bodyNode = _VirtualDom_applyPatches(bodyNode, currNode, patches, sendToApp);
 				currNode = nextNode;
 				_VirtualDom_divertHrefToApp = 0;
-				(title !== doc.a1) && (_VirtualDom_doc.title = title = doc.a1);
+				(title !== doc.a0) && (_VirtualDom_doc.title = title = doc.a0);
 			});
 		}
 	);
@@ -4168,8 +4168,8 @@ function _Browser_makeAnimator(model, draw)
 
 function _Browser_application(impl)
 {
-	var onUrlChange = impl.aT;
-	var onUrlRequest = impl.aU;
+	var onUrlChange = impl.aS;
+	var onUrlRequest = impl.aT;
 	var key = function() { key.a(onUrlChange(_Browser_getUrl())); };
 
 	return _Browser_document({
@@ -4199,13 +4199,13 @@ function _Browser_application(impl)
 				}
 			});
 		},
-		aR: function(flags)
+		aQ: function(flags)
 		{
-			return A3(impl.aR, flags, _Browser_getUrl(), key);
+			return A3(impl.aQ, flags, _Browser_getUrl(), key);
 		},
 		a3: impl.a3,
-		a2: impl.a2,
-		a0: impl.a0
+		a1: impl.a1,
+		a$: impl.a$
 	});
 }
 
@@ -4271,17 +4271,17 @@ var _Browser_decodeEvent = F2(function(decoder, event)
 function _Browser_visibilityInfo()
 {
 	return (typeof _VirtualDom_doc.hidden !== 'undefined')
-		? { aP: 'hidden', aK: 'visibilitychange' }
+		? { aO: 'hidden', aJ: 'visibilitychange' }
 		:
 	(typeof _VirtualDom_doc.mozHidden !== 'undefined')
-		? { aP: 'mozHidden', aK: 'mozvisibilitychange' }
+		? { aO: 'mozHidden', aJ: 'mozvisibilitychange' }
 		:
 	(typeof _VirtualDom_doc.msHidden !== 'undefined')
-		? { aP: 'msHidden', aK: 'msvisibilitychange' }
+		? { aO: 'msHidden', aJ: 'msvisibilitychange' }
 		:
 	(typeof _VirtualDom_doc.webkitHidden !== 'undefined')
-		? { aP: 'webkitHidden', aK: 'webkitvisibilitychange' }
-		: { aP: 'hidden', aK: 'visibilitychange' };
+		? { aO: 'webkitHidden', aJ: 'webkitvisibilitychange' }
+		: { aO: 'hidden', aJ: 'visibilitychange' };
 }
 
 
@@ -4363,7 +4363,7 @@ function _Browser_getViewport()
 {
 	return {
 		aA: _Browser_getScene(),
-		aG: {
+		aF: {
 			S: _Browser_window.pageXOffset,
 			T: _Browser_window.pageYOffset,
 			H: _Browser_doc.documentElement.clientWidth,
@@ -4405,7 +4405,7 @@ function _Browser_getViewportOf(id)
 				H: node.scrollWidth,
 				B: node.scrollHeight
 			},
-			aG: {
+			aF: {
 				S: node.scrollLeft,
 				T: node.scrollTop,
 				H: node.clientWidth,
@@ -4440,13 +4440,13 @@ function _Browser_getElement(id)
 		var y = _Browser_window.pageYOffset;
 		return {
 			aA: _Browser_getScene(),
-			aG: {
+			aF: {
 				S: x,
 				T: y,
 				H: _Browser_doc.documentElement.clientWidth,
 				B: _Browser_doc.documentElement.clientHeight
 			},
-			aM: {
+			aK: {
 				S: x + rect.left,
 				T: y + rect.top,
 				H: rect.width,
@@ -4969,7 +4969,7 @@ var elm$core$Platform$Cmd$none = elm$core$Platform$Cmd$batch(_List_Nil);
 var author$project$Main$init = F2(
 	function (initType, _n0) {
 		return _Utils_Tuple2(
-			{J: elm$core$Maybe$Nothing, K: _List_Nil, m: '', C: author$project$HistoryView$empty, s: '', l: initType, x: ''},
+			{J: elm$core$Maybe$Nothing, K: _List_Nil, m: '', C: author$project$HistoryView$empty, o: '', l: initType, x: ''},
 			elm$core$Platform$Cmd$none);
 	});
 var author$project$Main$resourceList = _List_fromArray(
@@ -5094,6 +5094,79 @@ var author$project$Main$errToString = function (err) {
 			return 'Bad Body error: ' + errmsg;
 	}
 };
+var elm$core$Basics$compare = _Utils_compare;
+var elm$core$Dict$get = F2(
+	function (targetKey, dict) {
+		get:
+		while (true) {
+			if (dict.$ === -2) {
+				return elm$core$Maybe$Nothing;
+			} else {
+				var key = dict.b;
+				var value = dict.c;
+				var left = dict.d;
+				var right = dict.e;
+				var _n1 = A2(elm$core$Basics$compare, targetKey, key);
+				switch (_n1) {
+					case 0:
+						var $temp$targetKey = targetKey,
+							$temp$dict = left;
+						targetKey = $temp$targetKey;
+						dict = $temp$dict;
+						continue get;
+					case 1:
+						return elm$core$Maybe$Just(value);
+					default:
+						var $temp$targetKey = targetKey,
+							$temp$dict = right;
+						targetKey = $temp$targetKey;
+						dict = $temp$dict;
+						continue get;
+				}
+			}
+		}
+	});
+var author$project$Generic$field = F2(
+	function (key, obj) {
+		if (obj.$ === 4) {
+			var dict = obj.a;
+			return A2(elm$core$Dict$get, key, dict.ac);
+		} else {
+			return elm$core$Maybe$Nothing;
+		}
+	});
+var author$project$Generic$toString = function (v) {
+	if (v.$ === 1) {
+		var s = v.a;
+		return elm$core$Maybe$Just(s);
+	} else {
+		return elm$core$Maybe$Nothing;
+	}
+};
+var elm$core$List$head = function (list) {
+	if (list.b) {
+		var x = list.a;
+		var xs = list.b;
+		return elm$core$Maybe$Just(x);
+	} else {
+		return elm$core$Maybe$Nothing;
+	}
+};
+var author$project$Main$firstResId = function (entries) {
+	var _n0 = elm$core$List$head(entries);
+	if (_n0.$ === 1) {
+		return elm$core$Maybe$Nothing;
+	} else {
+		var entry = _n0.a;
+		var _n1 = A2(author$project$Generic$field, 'id', entry.az);
+		if (!_n1.$) {
+			var v = _n1.a;
+			return author$project$Generic$toString(v);
+		} else {
+			return elm$core$Maybe$Nothing;
+		}
+	}
+};
 var author$project$Main$FetchOfData = function (a) {
 	return {$: 5, a: a};
 };
@@ -5125,13 +5198,12 @@ var elm$json$Json$Decode$map = _Json_map1;
 var author$project$Generic$blnDecoder = A2(elm$json$Json$Decode$map, author$project$Generic$Bln, elm$json$Json$Decode$bool);
 var elm$core$Dict$RBEmpty_elm_builtin = {$: -2};
 var elm$core$Dict$empty = elm$core$Dict$RBEmpty_elm_builtin;
-var wittjosiah$elm_ordered_dict$OrderedDict$empty = {aL: elm$core$Dict$empty, aW: _List_Nil};
+var wittjosiah$elm_ordered_dict$OrderedDict$empty = {ac: elm$core$Dict$empty, aV: _List_Nil};
 var elm$core$Dict$Black = 1;
 var elm$core$Dict$RBNode_elm_builtin = F5(
 	function (a, b, c, d, e) {
 		return {$: -1, a: a, b: b, c: c, d: d, e: e};
 	});
-var elm$core$Basics$compare = _Utils_compare;
 var elm$core$Dict$Red = 0;
 var elm$core$Dict$balance = F5(
 	function (color, key, value, left, right) {
@@ -5235,37 +5307,6 @@ var elm$core$Dict$insert = F3(
 			return x;
 		}
 	});
-var elm$core$Dict$get = F2(
-	function (targetKey, dict) {
-		get:
-		while (true) {
-			if (dict.$ === -2) {
-				return elm$core$Maybe$Nothing;
-			} else {
-				var key = dict.b;
-				var value = dict.c;
-				var left = dict.d;
-				var right = dict.e;
-				var _n1 = A2(elm$core$Basics$compare, targetKey, key);
-				switch (_n1) {
-					case 0:
-						var $temp$targetKey = targetKey,
-							$temp$dict = left;
-						targetKey = $temp$targetKey;
-						dict = $temp$dict;
-						continue get;
-					case 1:
-						return elm$core$Maybe$Just(value);
-					default:
-						var $temp$targetKey = targetKey,
-							$temp$dict = right;
-						targetKey = $temp$targetKey;
-						dict = $temp$dict;
-						continue get;
-				}
-			}
-		}
-	});
 var elm$core$Dict$member = F2(
 	function (key, dict) {
 		var _n0 = A2(elm$core$Dict$get, key, dict);
@@ -5285,14 +5326,14 @@ var elm$core$List$append = F2(
 	});
 var wittjosiah$elm_ordered_dict$OrderedDict$insert = F3(
 	function (key, value, orderedDict) {
-		var newOrder = A2(elm$core$Dict$member, key, orderedDict.aL) ? orderedDict.aW : A2(
+		var newOrder = A2(elm$core$Dict$member, key, orderedDict.ac) ? orderedDict.aV : A2(
 			elm$core$List$append,
-			orderedDict.aW,
+			orderedDict.aV,
 			_List_fromArray(
 				[key]));
 		return {
-			aL: A3(elm$core$Dict$insert, key, value, orderedDict.aL),
-			aW: newOrder
+			ac: A3(elm$core$Dict$insert, key, value, orderedDict.ac),
+			aV: newOrder
 		};
 	});
 var author$project$Generic$dictFromPairs = function (pairs) {
@@ -6045,13 +6086,13 @@ var elm$http$Http$cmdMap = F2(
 			return elm$http$Http$Request(
 				{
 					z: r.z,
-					aJ: r.aJ,
-					ae: A2(_Http_mapExpect, func, r.ae),
+					aI: r.aI,
+					aL: A2(_Http_mapExpect, func, r.aL),
 					e: r.e,
 					h: r.h,
 					i: r.i,
 					j: r.j,
-					aF: r.aF
+					a2: r.a2
 				});
 		}
 	});
@@ -6074,19 +6115,21 @@ var elm$http$Http$subscription = _Platform_leaf('Http');
 var elm$http$Http$request = function (r) {
 	return elm$http$Http$command(
 		elm$http$Http$Request(
-			{z: false, aJ: r.aJ, ae: r.ae, e: r.e, h: r.h, i: r.i, j: r.j, aF: r.aF}));
+			{z: false, aI: r.aI, aL: r.aL, e: r.e, h: r.h, i: r.i, j: r.j, a2: r.a2}));
 };
 var elm$http$Http$get = function (r) {
 	return elm$http$Http$request(
-		{aJ: elm$http$Http$emptyBody, ae: r.ae, e: _List_Nil, h: 'GET', i: elm$core$Maybe$Nothing, j: elm$core$Maybe$Nothing, aF: r.aF});
+		{aI: elm$http$Http$emptyBody, aL: r.aL, e: _List_Nil, h: 'GET', i: elm$core$Maybe$Nothing, j: elm$core$Maybe$Nothing, a2: r.a2});
 };
-var author$project$Main$getRecentData = function (resType) {
-	var url = '/lr/' + resType;
+var author$project$Main$fetchData = function (url) {
 	return elm$http$Http$get(
 		{
-			ae: A2(elm$http$Http$expectJson, author$project$Main$FetchOfData, author$project$Main$decodeData),
-			aF: url
+			aL: A2(elm$http$Http$expectJson, author$project$Main$FetchOfData, author$project$Main$decodeData),
+			a2: url
 		});
+};
+var author$project$Main$getRecentData = function (resType) {
+	return author$project$Main$fetchData('/l/' + resType);
 };
 var elm$core$List$drop = F2(
 	function (n, list) {
@@ -6109,15 +6152,6 @@ var elm$core$List$drop = F2(
 			}
 		}
 	});
-var elm$core$List$head = function (list) {
-	if (list.b) {
-		var x = list.a;
-		var xs = list.b;
-		return elm$core$Maybe$Just(x);
-	} else {
-		return elm$core$Maybe$Nothing;
-	}
-};
 var author$project$Main$lstGet = F2(
 	function (index, list) {
 		return elm$core$List$head(
@@ -6150,12 +6184,7 @@ var author$project$Main$resourceLabel = function (rType) {
 };
 var author$project$Main$getData = F2(
 	function (resType, resId) {
-		var url = '/l/' + (resType + ('/' + resId));
-		return elm$http$Http$get(
-			{
-				ae: A2(elm$http$Http$expectJson, author$project$Main$FetchOfData, author$project$Main$decodeData),
-				aF: url
-			});
+		return author$project$Main$fetchData('/l/' + (resType + ('/' + resId)));
 	});
 var author$project$Main$updateGetAction = function (model) {
 	var newmodel = _Utils_update(
@@ -6163,7 +6192,7 @@ var author$project$Main$updateGetAction = function (model) {
 		{m: '', x: 'Downloading, please wait ...'});
 	return _Utils_Tuple2(
 		newmodel,
-		A2(author$project$Main$getData, newmodel.l, newmodel.s));
+		A2(author$project$Main$getData, newmodel.l, newmodel.o));
 };
 var author$project$Main$updateNoOp = function (model) {
 	return _Utils_Tuple2(model, elm$core$Platform$Cmd$none);
@@ -6177,14 +6206,14 @@ var author$project$Main$update = F2(
 				return _Utils_Tuple2(
 					_Utils_update(
 						model,
-						{m: '', s: newId, x: ''}),
+						{m: '', o: newId, x: ''}),
 					elm$core$Platform$Cmd$none);
 			case 1:
 				return author$project$Main$updateGetAction(model);
 			case 2:
 				var newmodel = _Utils_update(
 					model,
-					{m: '', x: 'Downloading, please wait ...'});
+					{m: '', o: '', x: 'Downloading, please wait ...'});
 				return _Utils_Tuple2(
 					newmodel,
 					author$project$Main$getRecentData(newmodel.l));
@@ -6216,7 +6245,7 @@ var author$project$Main$update = F2(
 				return author$project$Main$updateGetAction(
 					_Utils_update(
 						model,
-						{s: logEntry.aw, l: logEntry.aY}));
+						{o: logEntry.aw, l: logEntry.aX}));
 			case 8:
 				var emsg = msg.a;
 				return author$project$Main$updateNoOp(model);
@@ -6224,6 +6253,10 @@ var author$project$Main$update = F2(
 				var res = msg.a;
 				if (!res.$) {
 					var entries = res.a;
+					var resId = A2(
+						elm$core$Maybe$withDefault,
+						'',
+						author$project$Main$firstResId(entries));
 					return _Utils_Tuple2(
 						_Utils_update(
 							model,
@@ -6238,15 +6271,16 @@ var author$project$Main$update = F2(
 										return A2(
 											author$project$HistoryView$add,
 											{
-												aw: model.s,
-												aY: model.l,
+												aw: resId,
+												aX: model.l,
 												ax: author$project$Main$resourceLabel(model.l)
 											},
 											model.C);
 									}
 								}(),
+								o: resId,
 								x: elm$core$String$fromInt(
-									elm$core$List$length(entries)) + (' results found for ' + (model.l + ('/' + model.s)))
+									elm$core$List$length(entries)) + (' results found for ' + (model.l + ('/' + model.o)))
 							}),
 						elm$core$Platform$Cmd$none);
 				} else {
@@ -6314,9 +6348,9 @@ var author$project$Generic$dictToPairs = function (dict) {
 			A2(
 				elm$core$Maybe$withDefault,
 				author$project$Generic$Nil,
-				A2(elm$core$Dict$get, key, dict.aL)));
+				A2(elm$core$Dict$get, key, dict.ac)));
 	};
-	return A2(elm$core$List$map, func, dict.aW);
+	return A2(elm$core$List$map, func, dict.aV);
 };
 var elm$json$Json$Encode$bool = _Json_wrap;
 var elm$json$Json$Encode$float = _Json_wrap;
@@ -6413,8 +6447,7 @@ var author$project$Entry$renderDct = function (dict) {
 		A2(
 			elm$core$List$map,
 			author$project$Entry$renderAttribute,
-			elm$core$List$reverse(
-				author$project$Generic$dictToPairs(dict))));
+			author$project$Generic$dictToPairs(dict)));
 };
 var author$project$Entry$renderItem = function (val) {
 	return A2(
@@ -6781,7 +6814,7 @@ var author$project$Main$view = function (model) {
 							[
 								elm$html$Html$Attributes$type_('text'),
 								elm$html$Html$Attributes$id('resid'),
-								elm$html$Html$Attributes$value(model.s),
+								elm$html$Html$Attributes$value(model.o),
 								author$project$Main$onKeyPress(author$project$Main$KeyPress),
 								elm$html$Html$Events$onInput(author$project$Main$Entry)
 							]),
@@ -7052,13 +7085,13 @@ var elm$url$Url$fromString = function (str) {
 var elm$browser$Browser$element = _Browser_element;
 var author$project$Main$main = elm$browser$Browser$element(
 	{
-		aR: author$project$Main$init(
+		aQ: author$project$Main$init(
 			A2(
 				elm$core$Maybe$withDefault,
 				_Utils_Tuple2('departures', ''),
 				elm$core$List$head(author$project$Main$resourceList)).a),
-		a0: author$project$Main$subscriptions,
-		a2: author$project$Main$update,
+		a$: author$project$Main$subscriptions,
+		a1: author$project$Main$update,
 		a3: author$project$Main$view
 	});
 _Platform_export({'Main':{'init':author$project$Main$main(

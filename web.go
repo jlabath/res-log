@@ -148,6 +148,7 @@ func processHook(ctx context.Context, in io.Reader) error {
 //Resource is our basic model representing the REST resource that we save to datastore
 type Resource struct {
 	URI       string `datastore:"Uri"`
+	Type      string `datastore:"Type"`
 	HookDate  string `datastore:",noindex"`
 	Data      []byte `datastore:",noindex"`
 	FetchDate time.Time
@@ -290,6 +291,7 @@ func saveResource(c context.Context, hook *hookStruct) error {
 	//create and save
 	r := Resource{
 		URI:       uriBuf.String(),
+		Type:      hook.Resource,
 		HookDate:  hook.Created,
 		Data:      pdata,
 		FetchDate: time.Now().UTC(),
@@ -353,7 +355,7 @@ func resourcesView(w http.ResponseWriter, r *http.Request) {
 	//query
 	restype := getURLPart("/l/", r.URL.Path, 0)
 	resid := getURLPart("/l/", r.URL.Path, 1)
-	if resid == "" || restype == "" {
+	if restype == "" {
 		http.Error(w, "missing resource type or ID", http.StatusBadRequest)
 		return
 	}
@@ -362,6 +364,22 @@ func resourcesView(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	c := r.Context()
+	dsClient, err := datastore.NewClient(c, projectID)
+	if err != nil {
+		log.Printf("Failed to create a datastore client %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if resid == "" {
+		//no ID passed get the most recent id
+		resid, err = getRecentIDForResource(c, dsClient, restype)
+		if err != nil {
+			log.Printf("Failed to query most recent ID for resource %s %v", restype, err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+	}
+
 	str := bytes.NewBufferString(restype)
 	str.WriteString("/")
 	str.WriteString(resid)
@@ -371,12 +389,6 @@ func resourcesView(w http.ResponseWriter, r *http.Request) {
 		totalBytes int64
 		isFirst    = true
 	)
-	dsClient, err := datastore.NewClient(c, projectID)
-	if err != nil {
-		log.Printf("Failed to create a datastore client %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
 	t := dsClient.Run(c, q)
 	out := bufio.NewWriter(w)
 	out.WriteString("[")
@@ -467,10 +479,26 @@ func purgeBefore(ctx context.Context, when time.Time, encCursor string) (err err
 	return nil
 }
 
+func getRecentIDForResource(ctx context.Context, client *datastore.Client, resource string) (string, error) {
+	q := datastore.NewQuery("resource").
+		Filter("Type =", resource).
+		Order("-FetchDate").
+		Limit(1)
+	var resources []Resource
+	keys, err := client.GetAll(ctx, q, &resources)
+	if err != nil {
+		return "", err
+	}
+	if len(keys) == 0 {
+		return "", fmt.Errorf("Query for recent ID had no results")
+	}
+	return strings.Replace(resources[0].URI, resource+"/", "", 1), nil
+}
+
 func dailyView(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	ctx := r.Context()
-	t := time.Now().UTC().Add(-92 * 24 * time.Hour)
+	t := time.Now().UTC().Add(-365 * 24 * time.Hour)
 	purgeBeforeLater(ctx, t)
 	w.Header().Add("content-type", "application/json")
 	fmt.Fprintf(w, "\"OK\"")
