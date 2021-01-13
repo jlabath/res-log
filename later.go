@@ -77,9 +77,22 @@ func purgeBeforeLater(ctx context.Context, t time.Time) {
 	}
 }
 
+type LaterStepArgs struct {
+	When   time.Time
+	Cursor string
+}
+
 //purgeStepLater is expecting query cursor to continue purging
-func purgeStepLater(ctx context.Context, msg string) {
-	if _, err := createTask(ctx, "/task/purge_step", []byte(msg)); err != nil {
+func purgeStepLater(ctx context.Context, when time.Time, msg string) {
+	arg := LaterStepArgs{
+		When:   when,
+		Cursor: msg,
+	}
+	body, err := json.Marshal(arg)
+	if err != nil {
+		log.Printf("trouble encoding json %v", err)
+	}
+	if _, err := createTask(ctx, "/task/purge_step", body); err != nil {
 		log.Printf("trouble scheduling task %v", err)
 	}
 }

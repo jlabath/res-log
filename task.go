@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"time"
@@ -68,14 +67,14 @@ func purgeBeforeView(w http.ResponseWriter, r *http.Request) {
 }
 
 func purgeStepView(w http.ResponseWriter, r *http.Request) {
-	data, err := ioutil.ReadAll(r.Body)
+	var arg LaterStepArgs
+	err := json.NewDecoder(r.Body).Decode(&arg)
 	if err != nil {
 		log.Printf("trouble reading request body: %v", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
-	var t time.Time
-	if err := purgeBefore(r.Context(), t, string(data)); err != nil {
+	if err := purgeBefore(r.Context(), arg.When, arg.Cursor); err != nil {
 		log.Printf("trouble purging with cursor: %v", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return

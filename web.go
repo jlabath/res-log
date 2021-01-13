@@ -474,7 +474,7 @@ func purgeBefore(ctx context.Context, when time.Time, encCursor string) (err err
 		return err
 	}
 	if !stop {
-		purgeStepLater(ctx, newCursor)
+		purgeStepLater(ctx, when, newCursor)
 	}
 	return nil
 }
@@ -498,7 +498,7 @@ func getRecentIDForResource(ctx context.Context, client *datastore.Client, resou
 func dailyView(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	ctx := r.Context()
-	t := time.Now().UTC().Add(-365 * 24 * time.Hour)
+	t := time.Now().UTC().Add(-31 * 24 * time.Hour)
 	purgeBeforeLater(ctx, t)
 	w.Header().Add("content-type", "application/json")
 	fmt.Fprintf(w, "\"OK\"")
